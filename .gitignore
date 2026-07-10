@@ -1,0 +1,86 @@
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.ropeproject
+.venv/
+venv/
+ENV/
+env/
+
+# Node/Frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+.npm
+.eslintcache
+.stylelintcache
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.vimrc
+
+# Application specific
+# Do not commit local sqlite DBs
+*.db
+*.sqlite
+*.sqlite3
+# Do not commit local configs with secrets
+local_config.json
+secret*.json
+.env
+.env.local
+# Do not commit raw audit data that may contain serial numbers
+audit_raw_*.log
+# Backup files
+*.bak
+*备份*
+# TLS and security materials
+*.pem
+*.key
+*.crt
+
+# KEEP Documentation and Configuration Assets
+!docs/
+!AGENTS.md
+!README.md
+!schemas/
+!tests/fixtures/
+!examples/
