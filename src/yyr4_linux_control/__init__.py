@@ -22,6 +22,11 @@ from .input import (
     LinuxEvdevDeviceFactory,
     SystemMonotonicClock,
 )
+from .observation import (
+    ObservationPipeline,
+    ObservationState,
+    ObservationDiagnostics,
+)
 
 __all__ = [
     "PhysicalControl",
@@ -46,4 +51,7 @@ __all__ = [
     "EvdevInputAdapter",
     "LinuxEvdevDeviceFactory",
     "SystemMonotonicClock",
+    "ObservationPipeline",
+    "ObservationState",
+    "ObservationDiagnostics",
 ]
