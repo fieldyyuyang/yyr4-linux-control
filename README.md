@@ -7,7 +7,11 @@
 
 ## Current State
 **[Status: Milestone 1 - Parser Core]**
-Device research and transport code auditing (Milestone 0) is complete. The Python parser core is being implemented. The project currently has NO functioning daemon, CLI, or Web UI, and cannot be used as a product yet.
+Device research and transport code auditing (Milestone 0) is complete. The Python parser core and evdev adapter logic are implemented. The project currently has NO functioning daemon, CLI, or Web UI, and cannot be used as a product yet.
+
+### Milestones
+- Milestone 1.0: Transport code parser core (Completed)
+- Milestone 1.1: Safe device discovery and evdev adapter (Completed - using mock backends)
 
 ## Core Principles
 * **Web UI First**: All user interactions are handled via a local Web UI.

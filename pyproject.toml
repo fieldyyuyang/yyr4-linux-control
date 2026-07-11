@@ -12,6 +12,10 @@ license = {text = "MIT License"}
 dependencies = []
 
 [project.optional-dependencies]
+linux-input = [
+    "evdev",
+    "pyudev",
+]
 dev = [
     "pytest",
     "pytest-cov",

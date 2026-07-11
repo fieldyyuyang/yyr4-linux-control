@@ -10,7 +10,11 @@ This roadmap defines the sequential dependencies for the project. Moving to the 
 * **Non-goals**: Writing the mapping engine.
 * **Exit Criteria**: A populated mapping table mapping physical inputs to logical IDs.
 
-## Milestone 1: Core Daemon & Event Monitor CLI (Current Phase: Parser Core)
+## Milestone 1: Userspace Transport Daemon MVP
+
+* **Milestone 1.0 (COMPLETED)**: Project bootstrap and transport-code parser core.
+* **Milestone 1.1 (COMPLETED)**: Safe device discovery and evdev input adapter.
+* **Milestone 1.2 (NOT STARTED)**: Daemon Implementation
 * **Goal**: A foundational daemon reading `evdev`.
 * **Deliverables**: Python daemon, precise `udev` rules.
 * **Validation Gate**: Reads inputs exclusively from the YYR4.

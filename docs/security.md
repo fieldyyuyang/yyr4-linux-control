@@ -36,3 +36,7 @@
 * **Recovery**: SQLite schema transactions ensure rollback to the last known-good state.
 
 *See also: [Vibe Coding Approvals](vibe-coding-approvals.md).*
+
+
+## Multi-Factor Identity Matching
+To safely acquire the device without risk of opening the users main keyboard, we strictly match the parent USB topology, vendor, product, and ensure exactly one keyboard and one mouse interface are present on interface 02. The discovery logic fails closed on any ambiguity.
