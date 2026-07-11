@@ -6,8 +6,8 @@
 `yyr4-linux-control` is a professional, context-aware control surface platform tailored for Debian 13 and modern Linux desktops. It maximizes the capabilities of the YYR4 programmable keypad (12 mechanical keys, 4 encoders) by providing context-aware app switching, multi-layer mapping, macros, and deep system integration.
 
 ## Current State
-**[Status: Planning / Milestone 0]**
-Currently, there is **NO** working program available. The project is in the initial design and research phase.
+**[Status: Milestone 1 - Parser Core]**
+Device research and transport code auditing (Milestone 0) is complete. The Python parser core is being implemented. The project currently has NO functioning daemon, CLI, or Web UI, and cannot be used as a product yet.
 
 ## Core Principles
 * **Web UI First**: All user interactions are handled via a local Web UI.

@@ -1,0 +1,104 @@
+{
+  "scenarios": {
+    "1_A1_normal": [
+      {"source_id": "yyr4", "timestamp_ns": 1000000, "code": "KEY_F13", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 2000000, "code": "KEY_F13", "value": 0}
+    ],
+    "2_A2_repeat": [
+      {"source_id": "yyr4", "timestamp_ns": 1000000, "code": "KEY_F14", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 500000000, "code": "KEY_F14", "value": 2},
+      {"source_id": "yyr4", "timestamp_ns": 600000000, "code": "KEY_F14", "value": 0}
+    ],
+    "3_A12_normal": [
+      {"source_id": "yyr4", "timestamp_ns": 1000000, "code": "KEY_F24", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 2000000, "code": "KEY_F24", "value": 0}
+    ],
+    "4_AL_special_release": [
+      {"source_id": "yyr4", "timestamp_ns": 1000000, "code": "KEY_LEFTSHIFT", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 2000000, "code": "KEY_F13", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 3000000, "code": "KEY_LEFTSHIFT", "value": 0},
+      {"source_id": "yyr4", "timestamp_ns": 4000000, "code": "KEY_F13", "value": 0}
+    ],
+    "5_AP_standard_release": [
+      {"source_id": "yyr4", "timestamp_ns": 1000000, "code": "KEY_LEFTSHIFT", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 2000000, "code": "KEY_F14", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 3000000, "code": "KEY_F14", "value": 0},
+      {"source_id": "yyr4", "timestamp_ns": 4000000, "code": "KEY_LEFTSHIFT", "value": 0}
+    ],
+    "6_AR": [
+      {"source_id": "yyr4", "timestamp_ns": 1000000, "code": "KEY_LEFTSHIFT", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 2000000, "code": "KEY_F15", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 3000000, "code": "KEY_LEFTSHIFT", "value": 0},
+      {"source_id": "yyr4", "timestamp_ns": 4000000, "code": "KEY_F15", "value": 0}
+    ],
+    "7_DR": [
+      {"source_id": "yyr4", "timestamp_ns": 1000000, "code": "KEY_LEFTSHIFT", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 2000000, "code": "KEY_F24", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 3000000, "code": "KEY_LEFTSHIFT", "value": 0},
+      {"source_id": "yyr4", "timestamp_ns": 4000000, "code": "KEY_F24", "value": 0}
+    ],
+    "8_continuous_shift": [
+      {"source_id": "yyr4", "timestamp_ns": 1000000, "code": "KEY_LEFTSHIFT", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 2000000, "code": "KEY_F13", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 3000000, "code": "KEY_F13", "value": 0},
+      {"source_id": "yyr4", "timestamp_ns": 4000000, "code": "KEY_F13", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 5000000, "code": "KEY_F13", "value": 0},
+      {"source_id": "yyr4", "timestamp_ns": 6000000, "code": "KEY_LEFTSHIFT", "value": 0}
+    ],
+    "9_shift_timeout": [
+      {"source_id": "yyr4", "timestamp_ns": 1000000, "code": "KEY_LEFTSHIFT", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 200000000, "code": "KEY_F13", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 201000000, "code": "KEY_F13", "value": 0},
+      {"source_id": "yyr4", "timestamp_ns": 202000000, "code": "KEY_LEFTSHIFT", "value": 0}
+    ],
+    "10_orphan_release": [
+      {"source_id": "yyr4", "timestamp_ns": 1000000, "code": "KEY_F13", "value": 0}
+    ],
+    "11_duplicate_down": [
+      {"source_id": "yyr4", "timestamp_ns": 1000000, "code": "KEY_F13", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 2000000, "code": "KEY_F13", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 3000000, "code": "KEY_F13", "value": 0}
+    ],
+    "12_active_control_disconnect": [
+      {"source_id": "yyr4", "timestamp_ns": 1000000, "code": "KEY_F13", "value": 1}
+    ],
+    "13_other_source": [
+      {"source_id": "main_kbd", "timestamp_ns": 1000000, "code": "KEY_LEFTSHIFT", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 2000000, "code": "KEY_F13", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 3000000, "code": "KEY_F13", "value": 0},
+      {"source_id": "main_kbd", "timestamp_ns": 4000000, "code": "KEY_LEFTSHIFT", "value": 0}
+    ],
+    "14_unrelated_key": [
+      {"source_id": "yyr4", "timestamp_ns": 1000000, "code": "KEY_A", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 2000000, "code": "KEY_A", "value": 0}
+    ],
+    "15_f1_to_f12": [
+      {"source_id": "yyr4", "timestamp_ns": 1000000, "code": "KEY_F1", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 2000000, "code": "KEY_F12", "value": 1}
+    ],
+    "16_unsupported_code": [
+      {"source_id": "yyr4", "timestamp_ns": 1000000, "code": "KEY_UNKNOWN", "value": 1}
+    ],
+    "17_shift_repeat": [
+      {"source_id": "yyr4", "timestamp_ns": 1000000, "code": "KEY_LEFTSHIFT", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 2000000, "code": "KEY_LEFTSHIFT", "value": 2},
+      {"source_id": "yyr4", "timestamp_ns": 3000000, "code": "KEY_F13", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 4000000, "code": "KEY_F13", "value": 0},
+      {"source_id": "yyr4", "timestamp_ns": 5000000, "code": "KEY_LEFTSHIFT", "value": 0}
+    ],
+    "18_time_regression": [
+      {"source_id": "yyr4", "timestamp_ns": 2000000, "code": "KEY_F13", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 1000000, "code": "KEY_F13", "value": 0}
+    ],
+    "19_multiple_active_f_keys": [
+      {"source_id": "yyr4", "timestamp_ns": 1000000, "code": "KEY_F13", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 2000000, "code": "KEY_F14", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 3000000, "code": "KEY_F13", "value": 0},
+      {"source_id": "yyr4", "timestamp_ns": 4000000, "code": "KEY_F14", "value": 0}
+    ],
+    "20_shift_down_without_up": [
+      {"source_id": "yyr4", "timestamp_ns": 1000000, "code": "KEY_LEFTSHIFT", "value": 1},
+      {"source_id": "yyr4", "timestamp_ns": 2000000, "code": "KEY_LEFTSHIFT", "value": 1}
+    ]
+  }
+}

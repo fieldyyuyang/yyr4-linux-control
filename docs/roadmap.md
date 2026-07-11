@@ -2,7 +2,7 @@
 
 This roadmap defines the sequential dependencies for the project. Moving to the next milestone requires passing all gates of the current one.
 
-## Milestone 0: Device & Physical Event Audit (Current)
+## Milestone 0: Device & Physical Event Audit (Completed)
 * **Goal**: Establish architecture and execute a read-only audit of raw `evdev` packets.
 * **Deliverables**: Product documentation, event log tables.
 * **Validation Gate**: Physical controls uniquely identified in logs.
@@ -10,7 +10,7 @@ This roadmap defines the sequential dependencies for the project. Moving to the 
 * **Non-goals**: Writing the mapping engine.
 * **Exit Criteria**: A populated mapping table mapping physical inputs to logical IDs.
 
-## Milestone 1: Core Daemon & Event Monitor CLI
+## Milestone 1: Core Daemon & Event Monitor CLI (Current Phase: Parser Core)
 * **Goal**: A foundational daemon reading `evdev`.
 * **Deliverables**: Python daemon, precise `udev` rules.
 * **Validation Gate**: Reads inputs exclusively from the YYR4.
