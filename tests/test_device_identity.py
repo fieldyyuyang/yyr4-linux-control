@@ -8,7 +8,6 @@ class TestDeviceIdentity(unittest.TestCase):
             device_node="/dev/input/event0",
             device_name="YYR4 Keyboard",
             usb_interface_number="02",
-            readable=True,
             syspath="/sys/devices/pci0000:00/0000:00:14.0/usb1/1-1/1-1:1.2/input/input0/event0",
             parent_usb_syspath="/sys/devices/pci0000:00/0000:00:14.0/usb1/1-1"
         )
@@ -17,7 +16,6 @@ class TestDeviceIdentity(unittest.TestCase):
             device_node="/dev/input/event1",
             device_name="YYR4 Mouse",
             usb_interface_number="2",  # Should be normalized to 02
-            readable=True,
             syspath="/sys/devices/pci0000:00/0000:00:14.0/usb1/1-1/1-1:1.2/input/input1/event1",
             parent_usb_syspath="/sys/devices/pci0000:00/0000:00:14.0/usb1/1-1"
         )
@@ -40,19 +38,19 @@ class TestDeviceIdentity(unittest.TestCase):
 
     def test_empty_device_node(self):
         with self.assertRaises(ValueError):
-            InputInterface(InterfaceRole.KEYBOARD, "", "name", "02", True, "sys", "par")
+            InputInterface(InterfaceRole.KEYBOARD, "", "name", "02", "sys", "par")
 
     def test_empty_syspath(self):
         with self.assertRaises(ValueError):
-            InputInterface(InterfaceRole.KEYBOARD, "node", "name", "02", True, "", "par")
+            InputInterface(InterfaceRole.KEYBOARD, "node", "name", "02", "", "par")
 
     def test_empty_parent_syspath(self):
         with self.assertRaises(ValueError):
-            InputInterface(InterfaceRole.KEYBOARD, "node", "name", "02", True, "sys", "")
+            InputInterface(InterfaceRole.KEYBOARD, "node", "name", "02", "sys", "")
             
     def test_empty_interface_number(self):
         with self.assertRaises(ValueError):
-            InputInterface(InterfaceRole.KEYBOARD, "node", "name", "", True, "sys", "par")
+            InputInterface(InterfaceRole.KEYBOARD, "node", "name", "", "sys", "par")
 
     def test_empty_manufacturer(self):
         with self.assertRaises(ValueError):
@@ -63,27 +61,27 @@ class TestDeviceIdentity(unittest.TestCase):
             YYR4Identity("239a", "80f4", "man", "", "par", self.kb, self.ms, False)
 
     def test_mismatched_parent_keyboard(self):
-        kb2 = InputInterface(InterfaceRole.KEYBOARD, "n", "n", "02", True, "s", "other_par")
+        kb2 = InputInterface(InterfaceRole.KEYBOARD, "n", "n", "02", "s", "other_par")
         with self.assertRaises(ValueError):
             YYR4Identity("239a", "80f4", "man", "prod", "par", kb2, self.ms, False)
 
     def test_mismatched_parent_mouse(self):
-        ms2 = InputInterface(InterfaceRole.MOUSE, "n", "n", "02", True, "s", "other_par")
+        ms2 = InputInterface(InterfaceRole.MOUSE, "n", "n", "02", "s", "other_par")
         with self.assertRaises(ValueError):
             YYR4Identity("239a", "80f4", "man", "prod", "par", self.kb, ms2, False)
 
     def test_wrong_interface_keyboard(self):
-        kb2 = InputInterface(InterfaceRole.KEYBOARD, "n", "n", "01", True, "s", "par")
+        kb2 = InputInterface(InterfaceRole.KEYBOARD, "n", "n", "01", "s", "par")
         with self.assertRaises(ValueError):
             YYR4Identity("239a", "80f4", "man", "prod", "par", kb2, self.ms, False)
 
     def test_wrong_interface_mouse(self):
-        ms2 = InputInterface(InterfaceRole.MOUSE, "n", "n", "03", True, "s", "par")
+        ms2 = InputInterface(InterfaceRole.MOUSE, "n", "n", "03", "s", "par")
         with self.assertRaises(ValueError):
             YYR4Identity("239a", "80f4", "man", "prod", "par", self.kb, ms2, False)
 
     def test_duplicate_roles(self):
-        ms2 = InputInterface(InterfaceRole.KEYBOARD, "n", "n", "02", True, "s", "par")
+        ms2 = InputInterface(InterfaceRole.KEYBOARD, "n", "n", "02", "s", "par")
         with self.assertRaises(ValueError):
             YYR4Identity("239a", "80f4", "man", "prod", "par", self.kb, ms2, False)
             

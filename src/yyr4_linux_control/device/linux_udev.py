@@ -119,7 +119,6 @@ class LinuxUdevDiscoveryBackend(DiscoveryBackend):
             properties = types.MappingProxyType(props_dict)
 
             # Access permission check without opening
-            readable = os.access(device_node, os.R_OK) if os.path.exists(device_node) else False
 
             records.append(UdevInputRecord(
                 device_node=device_node,
@@ -128,7 +127,6 @@ class LinuxUdevDiscoveryBackend(DiscoveryBackend):
                 properties=properties,
                 devlinks=tuple(link for link in device.device_links),
                 device_name=device.properties.get("NAME", "").strip('"'),
-                readable=readable
             ))
 
         return records

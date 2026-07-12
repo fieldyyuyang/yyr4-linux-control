@@ -168,7 +168,7 @@ def get_dummy_identity() -> YYR4Identity:
         manufacturer="YOUYOU TEC.",
         product="YOUYOU Keyb_V2",
         usb_parent_syspath="/sys/dummy",
-        keyboard=InputInterface(InterfaceRole.KEYBOARD, "/dev/dummy1", "kbd", "02", True, "/sys/dummy/1", "/sys/dummy"),
-        mouse=InputInterface(InterfaceRole.MOUSE, "/dev/dummy2", "mouse", "02", True, "/sys/dummy/2", "/sys/dummy"),
+        keyboard=InputInterface(InterfaceRole.KEYBOARD, "/dev/dummy1", "kbd", "02", "/sys/dummy/1", "/sys/dummy"),
+        mouse=InputInterface(InterfaceRole.MOUSE, "/dev/dummy2", "mouse", "02", "/sys/dummy/2", "/sys/dummy"),
         serial_present=False
     )

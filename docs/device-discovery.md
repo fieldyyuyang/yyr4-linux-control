@@ -46,3 +46,9 @@ All units are tested using injected `DiscoveryBackend` and `EventDeviceFactory` 
 
 ## Note on Transport Codes
 **The user does NOT need to switch transport configurations at this stage.** The current YYR4 device can remain in its everyday configuration. We are only developing the safe discovery layer. Later, during the actual integration tests, the "after profile" will be loaded temporarily.
+
+
+### M1.3B-2C Discovery Architecture Update
+- **Metadata Only**: Discovery is now a pure udev/sysfs metadata phase. It does not evaluate node read permissions.
+- **Identity Unaffected by Permissions**: Identity selection is completely decoupled from the current user filesystem permissions. Permission errors will no longer mask devices as simply "not found" or "incomplete".
+- **Strict Verification Boundary**: Permission checking (via `FilesystemIdentityPermissionChecker`) happens strictly *after* a single valid Identity is confirmed, and it only tests the `keyboard` and `mouse` device nodes exactly once.

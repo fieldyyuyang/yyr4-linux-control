@@ -35,3 +35,10 @@ By design, all outputs emitted by the CLI are desensitized. USB topologies, comp
 
 ## State
 Currently, users *do not* need to switch to the Transport Profile. Implementation and simulated tests are complete. Users will only import the transport profile right before controlled validation, and can restore their normal profile immediately after.
+
+
+### M1.3B-2B Discovery Attempt
+- The M1.3B-2B real discovery execution successfully constructed a `pyudev.Context` and enumerated the input subsystem.
+- However, it was intentionally aborted by the safe wrapper because the discovery layer eagerly attempted `os.access` checks on unrelated nodes before completing identity matching.
+- **Zero Real Access Maintained**: No devices were opened, no events were read.
+- **Next Steps**: Following the M1.3B-2C decoupling patch, a single-run controlled discovery must be re-executed. The user still does not need to switch transmission configurations yet.

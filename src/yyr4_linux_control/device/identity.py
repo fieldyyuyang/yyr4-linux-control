@@ -13,7 +13,6 @@ class InputInterface:
     device_node: str
     device_name: str
     usb_interface_number: str
-    readable: bool
     syspath: str
     parent_usb_syspath: str
     devlinks: Tuple[str, ...] = field(default_factory=tuple)

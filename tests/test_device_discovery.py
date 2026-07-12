@@ -27,7 +27,6 @@ class TestDeviceDiscovery(unittest.TestCase):
             },
             devlinks=("/dev/input/by-id/kb-event-kbd", "/dev/input/by-path/kb"),
             device_name="YOUYOU Keyb_V2 Keyboard",
-            readable=True
         )
         self.valid_ms = UdevInputRecord(
             device_node="/dev/input/event1",
@@ -44,7 +43,6 @@ class TestDeviceDiscovery(unittest.TestCase):
             },
             devlinks=("/dev/input/by-path/ms-event-mouse",),
             device_name="YOUYOU Keyb_V2 Mouse",
-            readable=True
         )
 
     def test_discover_valid_single(self):
@@ -79,7 +77,6 @@ class TestDeviceDiscovery(unittest.TestCase):
             properties=self.valid_kb.properties,
             devlinks=(),
             device_name="YOUYOU Keyb_V2 Keyboard",
-            readable=True
         )
         ms2 = UdevInputRecord(
             device_node="/dev/input/event3",
@@ -88,7 +85,6 @@ class TestDeviceDiscovery(unittest.TestCase):
             properties=self.valid_ms.properties,
             devlinks=(),
             device_name="YOUYOU Keyb_V2 Mouse",
-            readable=True
         )
         backend = FakeDiscoveryBackend([self.valid_kb, self.valid_ms, kb2, ms2])
         discovery = YYR4DeviceDiscovery(backend)
@@ -100,7 +96,7 @@ class TestDeviceDiscovery(unittest.TestCase):
     def test_wrong_vid(self):
         props = dict(self.valid_kb.properties)
         props["ID_VENDOR_ID"] = "1111"
-        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name, True)
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name)
         backend = FakeDiscoveryBackend([kb, self.valid_ms])
         discovery = YYR4DeviceDiscovery(backend)
         self.assertEqual(len(discovery.discover_all()), 0)
@@ -109,7 +105,7 @@ class TestDeviceDiscovery(unittest.TestCase):
     def test_wrong_pid(self):
         props = dict(self.valid_kb.properties)
         props["ID_MODEL_ID"] = "1111"
-        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name, True)
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name)
         backend = FakeDiscoveryBackend([kb, self.valid_ms])
         discovery = YYR4DeviceDiscovery(backend)
         self.assertEqual(len(discovery.discover_all()), 0)
@@ -118,7 +114,7 @@ class TestDeviceDiscovery(unittest.TestCase):
     def test_wrong_manufacturer(self):
         props = dict(self.valid_kb.properties)
         props["ID_VENDOR"] = "Other"
-        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name, True)
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name)
         backend = FakeDiscoveryBackend([kb, self.valid_ms])
         discovery = YYR4DeviceDiscovery(backend)
         self.assertEqual(len(discovery.discover_all()), 0)
@@ -126,7 +122,7 @@ class TestDeviceDiscovery(unittest.TestCase):
     def test_wrong_product(self):
         props = dict(self.valid_kb.properties)
         props["ID_MODEL"] = "Other"
-        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name, True)
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name)
         backend = FakeDiscoveryBackend([kb, self.valid_ms])
         discovery = YYR4DeviceDiscovery(backend)
         self.assertEqual(len(discovery.discover_all()), 0)
@@ -134,7 +130,7 @@ class TestDeviceDiscovery(unittest.TestCase):
     def test_wrong_interface(self):
         props = dict(self.valid_kb.properties)
         props["ID_USB_INTERFACE_NUM"] = "03"
-        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name, True)
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name)
         backend = FakeDiscoveryBackend([kb, self.valid_ms])
         discovery = YYR4DeviceDiscovery(backend)
         self.assertEqual(len(discovery.discover_all()), 0)
@@ -153,21 +149,21 @@ class TestDeviceDiscovery(unittest.TestCase):
         self.assertEqual(discovery.snapshot_diagnostics().incomplete_groups, 1)
 
     def test_duplicate_keyboard(self):
-        kb2 = UdevInputRecord("/dev/input/event2", "/sys/kb2", "/sys/usb", self.valid_kb.properties, (), "YOUYOU Keyb_V2 Keyboard", True)
+        kb2 = UdevInputRecord("/dev/input/event2", "/sys/kb2", "/sys/usb", self.valid_kb.properties, (), "YOUYOU Keyb_V2 Keyboard")
         backend = FakeDiscoveryBackend([self.valid_kb, kb2, self.valid_ms])
         discovery = YYR4DeviceDiscovery(backend)
         self.assertEqual(len(discovery.discover_all()), 0)
         self.assertEqual(discovery.snapshot_diagnostics().ambiguous_groups, 1)
 
     def test_duplicate_mouse(self):
-        ms2 = UdevInputRecord("/dev/input/event2", "/sys/ms2", "/sys/usb", self.valid_ms.properties, (), "YOUYOU Keyb_V2 Mouse", True)
+        ms2 = UdevInputRecord("/dev/input/event2", "/sys/ms2", "/sys/usb", self.valid_ms.properties, (), "YOUYOU Keyb_V2 Mouse")
         backend = FakeDiscoveryBackend([self.valid_kb, self.valid_ms, ms2])
         discovery = YYR4DeviceDiscovery(backend)
         self.assertEqual(len(discovery.discover_all()), 0)
         self.assertEqual(discovery.snapshot_diagnostics().ambiguous_groups, 1)
 
     def test_same_node(self):
-        ms2 = UdevInputRecord(self.valid_kb.device_node, "/sys/ms2", "/sys/usb", self.valid_ms.properties, (), "YOUYOU Keyb_V2 Mouse", True)
+        ms2 = UdevInputRecord(self.valid_kb.device_node, "/sys/ms2", "/sys/usb", self.valid_ms.properties, (), "YOUYOU Keyb_V2 Mouse")
         backend = FakeDiscoveryBackend([self.valid_kb, ms2])
         discovery = YYR4DeviceDiscovery(backend)
         self.assertEqual(len(discovery.discover_all()), 0)
@@ -177,7 +173,7 @@ class TestDeviceDiscovery(unittest.TestCase):
         # A device with same VID PID but different manufacturer
         props = dict(self.valid_kb.properties)
         props["ID_VENDOR"] = "Not YOUYOU"
-        dev = UdevInputRecord("/dev/input/event0", "/s", "/p", props, (), "X", True)
+        dev = UdevInputRecord("/dev/input/event0", "/s", "/p", props, (), "X")
         backend = FakeDiscoveryBackend([dev])
         discovery = YYR4DeviceDiscovery(backend)
         self.assertEqual(len(discovery.discover_all()), 0)
@@ -198,7 +194,7 @@ class TestDeviceDiscovery(unittest.TestCase):
     def test_mfg_safe_space_match(self):
         props = dict(self.valid_kb.properties)
         props["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU_TEC."
-        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name, True)
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name)
         backend = FakeDiscoveryBackend([kb, self.valid_ms])
         discovery = YYR4DeviceDiscovery(backend)
         self.assertEqual(len(discovery.discover_all()), 1)
@@ -206,7 +202,7 @@ class TestDeviceDiscovery(unittest.TestCase):
     def test_product_safe_space_match(self):
         props = dict(self.valid_kb.properties)
         props["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU_Keyb_V2"
-        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name, True)
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name)
         backend = FakeDiscoveryBackend([kb, self.valid_ms])
         discovery = YYR4DeviceDiscovery(backend)
         self.assertEqual(len(discovery.discover_all()), 1)
@@ -217,7 +213,7 @@ class TestDeviceDiscovery(unittest.TestCase):
         # So matching "YOUYOU Keyb_V2" implies the underscore is preserved.
         props = dict(self.valid_kb.properties)
         props["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU Keyb_V2"
-        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name, True)
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name)
         backend = FakeDiscoveryBackend([kb, self.valid_ms])
         discovery = YYR4DeviceDiscovery(backend)
         identities = discovery.discover_all()
@@ -228,7 +224,7 @@ class TestDeviceDiscovery(unittest.TestCase):
     def test_case_variation_rejected(self):
         props = dict(self.valid_kb.properties)
         props["YYR4_NORMALIZED_MANUFACTURER"] = "youyou tec."
-        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name, True)
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name)
         backend = FakeDiscoveryBackend([kb, self.valid_ms])
         discovery = YYR4DeviceDiscovery(backend)
         self.assertEqual(len(discovery.discover_all()), 0)
@@ -236,7 +232,7 @@ class TestDeviceDiscovery(unittest.TestCase):
     def test_missing_period_rejected(self):
         props = dict(self.valid_kb.properties)
         props["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU TEC"
-        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name, True)
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name)
         backend = FakeDiscoveryBackend([kb, self.valid_ms])
         discovery = YYR4DeviceDiscovery(backend)
         self.assertEqual(len(discovery.discover_all()), 0)
@@ -244,7 +240,7 @@ class TestDeviceDiscovery(unittest.TestCase):
     def test_double_underscore_rejected(self):
         props = dict(self.valid_kb.properties)
         props["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU__TEC."
-        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name, True)
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name)
         backend = FakeDiscoveryBackend([kb, self.valid_ms])
         discovery = YYR4DeviceDiscovery(backend)
         self.assertEqual(len(discovery.discover_all()), 0)
@@ -252,7 +248,7 @@ class TestDeviceDiscovery(unittest.TestCase):
     def test_wrong_product_version_rejected(self):
         props = dict(self.valid_kb.properties)
         props["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU Keyb_V3"
-        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name, True)
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name)
         backend = FakeDiscoveryBackend([kb, self.valid_ms])
         discovery = YYR4DeviceDiscovery(backend)
         self.assertEqual(len(discovery.discover_all()), 0)
@@ -266,8 +262,7 @@ class TestDeviceDiscovery(unittest.TestCase):
             props["ID_INPUT_MOUSE"] = "0"
             rec = UdevInputRecord(
                 f"/dev/input/event{2+i}", "/sys/extra", "/sys/usb",
-                props, (), f"YOUYOU Keyb_V2 Extra {i}", True
-            )
+                props, (), f"YOUYOU Keyb_V2 Extra {i}")
             records.append(rec)
         backend = FakeDiscoveryBackend(records)
         discovery = YYR4DeviceDiscovery(backend)
@@ -280,8 +275,7 @@ class TestDeviceDiscovery(unittest.TestCase):
     def test_duplicate_keyboard_fails(self):
         kb2 = UdevInputRecord(
             "/dev/input/event99", "/sys/kb2", "/sys/usb",
-            self.valid_kb.properties, (), "YOUYOU Keyb_V2 Keyboard", True
-        )
+            self.valid_kb.properties, (), "YOUYOU Keyb_V2 Keyboard")
         backend = FakeDiscoveryBackend([self.valid_kb, kb2, self.valid_ms])
         discovery = YYR4DeviceDiscovery(backend)
         with self.assertRaises(DeviceAmbiguousError):
@@ -290,8 +284,7 @@ class TestDeviceDiscovery(unittest.TestCase):
     def test_duplicate_mouse_fails(self):
         ms2 = UdevInputRecord(
             "/dev/input/event99", "/sys/ms2", "/sys/usb",
-            self.valid_ms.properties, (), "YOUYOU Keyb_V2 Mouse", True
-        )
+            self.valid_ms.properties, (), "YOUYOU Keyb_V2 Mouse")
         backend = FakeDiscoveryBackend([self.valid_kb, self.valid_ms, ms2])
         discovery = YYR4DeviceDiscovery(backend)
         with self.assertRaises(DeviceAmbiguousError):
@@ -300,8 +293,7 @@ class TestDeviceDiscovery(unittest.TestCase):
     def test_different_parent_fails(self):
         ms2 = UdevInputRecord(
             self.valid_ms.device_node, self.valid_ms.syspath, "/sys/usb2",
-            self.valid_ms.properties, self.valid_ms.devlinks, self.valid_ms.device_name, True
-        )
+            self.valid_ms.properties, self.valid_ms.devlinks, self.valid_ms.device_name)
         backend = FakeDiscoveryBackend([self.valid_kb, ms2])
         discovery = YYR4DeviceDiscovery(backend)
         with self.assertRaises(DeviceIncompleteError):
@@ -310,12 +302,10 @@ class TestDeviceDiscovery(unittest.TestCase):
     def test_multiple_complete_groups_fails(self):
         kb2 = UdevInputRecord(
             "/dev/input/event98", "/sys/kb2", "/sys/usb2",
-            self.valid_kb.properties, (), "YOUYOU Keyb_V2 Keyboard", True
-        )
+            self.valid_kb.properties, (), "YOUYOU Keyb_V2 Keyboard")
         ms2 = UdevInputRecord(
             "/dev/input/event99", "/sys/ms2", "/sys/usb2",
-            self.valid_ms.properties, (), "YOUYOU Keyb_V2 Mouse", True
-        )
+            self.valid_ms.properties, (), "YOUYOU Keyb_V2 Mouse")
         backend = FakeDiscoveryBackend([self.valid_kb, self.valid_ms, kb2, ms2])
         discovery = YYR4DeviceDiscovery(backend)
         with self.assertRaises(DeviceAmbiguousError):
@@ -324,7 +314,7 @@ class TestDeviceDiscovery(unittest.TestCase):
     def test_clone_exact_match_rejected(self):
         props = dict(self.valid_kb.properties)
         props["ID_VENDOR"] = 'FAKE YOUYOU Keyb_V2 CLONE'
-        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name, True)
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name)
         backend = FakeDiscoveryBackend([kb, self.valid_ms])
         discovery = YYR4DeviceDiscovery(backend)
         self.assertEqual(len(discovery.discover_all()), 0)
@@ -337,7 +327,6 @@ class TestDeviceDiscovery(unittest.TestCase):
             properties=self.valid_kb.properties,
             devlinks=("/dev/input/by-path/pci-0000-event",),
             device_name="YOUYOU Keyb_V2 Keyboard",
-            readable=True
         )
         backend = FakeDiscoveryBackend([kb, self.valid_ms])
         discovery = YYR4DeviceDiscovery(backend)

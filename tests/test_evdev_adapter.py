@@ -11,8 +11,8 @@ from tests.fakes import FakeEventDeviceFactory, FakeClock, FakeEventDeviceHandle
 
 class TestEvdevAdapter(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.kb = InputInterface(InterfaceRole.KEYBOARD, "/dev/kb", "KB", "02", True, "/sys/kb", "/sys/usb")
-        self.ms = InputInterface(InterfaceRole.MOUSE, "/dev/ms", "MS", "02", True, "/sys/ms", "/sys/usb")
+        self.kb = InputInterface(InterfaceRole.KEYBOARD, "/dev/kb", "KB", "02", "/sys/kb", "/sys/usb")
+        self.ms = InputInterface(InterfaceRole.MOUSE, "/dev/ms", "MS", "02", "/sys/ms", "/sys/usb")
         self.idx = YYR4Identity("239a", "80f4", "M", "P", "/sys/usb", self.kb, self.ms, False)
         
         self.factory = FakeEventDeviceFactory()

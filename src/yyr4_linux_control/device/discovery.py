@@ -21,7 +21,6 @@ class UdevInputRecord:
     properties: Mapping[str, str]
     devlinks: Tuple[str, ...]
     device_name: str
-    readable: bool
 
 class DiscoveryBackend(Protocol):
     def enumerate_input_records(self) -> Sequence[UdevInputRecord]:
@@ -138,7 +137,6 @@ class YYR4DeviceDiscovery:
                 device_node=kb_rec.device_node,
                 device_name=kb_rec.device_name,
                 usb_interface_number=kb_rec.properties.get("ID_USB_INTERFACE_NUM", "02"),
-                readable=kb_rec.readable,
                 syspath=kb_rec.syspath,
                 parent_usb_syspath=kb_rec.parent_usb_syspath,
                 devlinks=kb_rec.devlinks,
@@ -150,7 +148,6 @@ class YYR4DeviceDiscovery:
                 device_node=ms_rec.device_node,
                 device_name=ms_rec.device_name,
                 usb_interface_number=ms_rec.properties.get("ID_USB_INTERFACE_NUM", "02"),
-                readable=ms_rec.readable,
                 syspath=ms_rec.syspath,
                 parent_usb_syspath=ms_rec.parent_usb_syspath,
                 devlinks=ms_rec.devlinks,

@@ -45,3 +45,9 @@ graph TD
 * Wayland support is planned via an extensible Desktop Adapter model, decoupling the Context Engine from pure X11 tools.
 
 *See also: [Web UI](web-ui.md), [Security Model](security.md).*
+
+
+### M1.3B-2C Discovery Permission Separation
+* Device discovery purely evaluates udev metadata to establish device identity.
+* Identity selection logic does not depend on the executing user’s `os.access`.
+* The `FilesystemIdentityPermissionChecker` acts as the exclusive authority for node readability and executes strictly after device grouping is complete.
