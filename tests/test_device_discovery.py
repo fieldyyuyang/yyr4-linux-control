@@ -254,23 +254,39 @@ class TestDeviceDiscovery(unittest.TestCase):
         self.assertEqual(len(discovery.discover_all()), 0)
 
     def test_six_record_composite_scenario(self):
-        # 1 valid kb, 1 valid ms, 4 extra HID interfaces
-        records = [self.valid_kb, self.valid_ms]
+        # 1 valid kb (reversed), 1 valid ms (reversed), 4 extra HID interfaces
+        props_kb = dict(self.valid_kb.properties)
+        props_kb["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU Keyb_V2"
+        props_kb["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU TEC."
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props_kb, (), self.valid_kb.device_name)
+
+        props_ms = dict(self.valid_ms.properties)
+        props_ms["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU Keyb_V2"
+        props_ms["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU TEC."
+        ms = UdevInputRecord(self.valid_ms.device_node, self.valid_ms.syspath, self.valid_ms.parent_usb_syspath, props_ms, (), self.valid_ms.device_name)
+
+        records = [kb, ms]
         for i in range(4):
             props = dict(self.valid_kb.properties)
+            props["ID_VENDOR_ID"] = "9999"
+            props["ID_MODEL_ID"] = "9999"
             props["ID_INPUT_KEYBOARD"] = "0"
             props["ID_INPUT_MOUSE"] = "0"
             rec = UdevInputRecord(
-                f"/dev/input/event{2+i}", "/sys/extra", "/sys/usb",
-                props, (), f"YOUYOU Keyb_V2 Extra {i}")
+                f"/dev/input/event{2+i}", "/sys/extra", "/sys/usb_other",
+                props, (), f"Other device {i}")
             records.append(rec)
         backend = FakeDiscoveryBackend(records)
         discovery = YYR4DeviceDiscovery(backend)
         identities = discovery.discover_all()
         self.assertEqual(len(identities), 1)
-        self.assertEqual(discovery.snapshot_diagnostics().complete_groups, 1)
-        self.assertEqual(discovery.snapshot_diagnostics().ambiguous_groups, 0)
-        self.assertEqual(discovery.snapshot_diagnostics().matched_records, 6)
+        self.assertEqual(identities[0].manufacturer, "YOUYOU TEC.")
+        self.assertEqual(identities[0].product, "YOUYOU Keyb_V2")
+        diag = discovery.snapshot_diagnostics()
+        self.assertEqual(diag.complete_groups, 1)
+        self.assertEqual(diag.ambiguous_groups, 0)
+        self.assertEqual(diag.matched_records, 2)
+        self.assertEqual(diag.enumerated_records, 6)
 
     def test_duplicate_keyboard_fails(self):
         kb2 = UdevInputRecord(
@@ -332,3 +348,218 @@ class TestDeviceDiscovery(unittest.TestCase):
         discovery = YYR4DeviceDiscovery(backend)
         identities = discovery.discover_all()
         self.assertEqual(identities[0].keyboard.stable_path, "/dev/input/by-path/pci-0000-event")
+
+    def test_canonical_safe_layout(self):
+        props_kb = dict(self.valid_kb.properties)
+        props_kb["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU_TEC."
+        props_kb["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU_Keyb_V2"
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props_kb, (), self.valid_kb.device_name)
+        props_ms = dict(self.valid_ms.properties)
+        props_ms["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU_TEC."
+        props_ms["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU_Keyb_V2"
+        ms = UdevInputRecord(self.valid_ms.device_node, self.valid_ms.syspath, self.valid_ms.parent_usb_syspath, props_ms, (), self.valid_ms.device_name)
+        backend = FakeDiscoveryBackend([kb, ms])
+        discovery = YYR4DeviceDiscovery(backend)
+        ident = discovery.select_single()
+        self.assertEqual(ident.manufacturer, "YOUYOU TEC.")
+        self.assertEqual(ident.product, "YOUYOU Keyb_V2")
+
+    def test_canonical_enc_layout(self):
+        # same as above essentially, but testing the name
+        props_kb = dict(self.valid_kb.properties)
+        props_kb["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU TEC."
+        props_kb["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU Keyb_V2"
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props_kb, (), self.valid_kb.device_name)
+        backend = FakeDiscoveryBackend([kb, self.valid_ms])
+        discovery = YYR4DeviceDiscovery(backend)
+        self.assertEqual(len(discovery.discover_all()), 1)
+
+    def test_reversed_original_layout(self):
+        props_kb = dict(self.valid_kb.properties)
+        props_kb["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU Keyb_V2"
+        props_kb["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU TEC."
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props_kb, (), self.valid_kb.device_name)
+        props_ms = dict(self.valid_ms.properties)
+        props_ms["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU Keyb_V2"
+        props_ms["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU TEC."
+        ms = UdevInputRecord(self.valid_ms.device_node, self.valid_ms.syspath, self.valid_ms.parent_usb_syspath, props_ms, (), self.valid_ms.device_name)
+        backend = FakeDiscoveryBackend([kb, ms])
+        discovery = YYR4DeviceDiscovery(backend)
+        ident = discovery.select_single()
+        self.assertEqual(ident.manufacturer, "YOUYOU TEC.")
+        self.assertEqual(ident.product, "YOUYOU Keyb_V2")
+
+    def test_reversed_safe_layout(self):
+        props_kb = dict(self.valid_kb.properties)
+        props_kb["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU_Keyb_V2"
+        props_kb["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU_TEC."
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props_kb, (), self.valid_kb.device_name)
+        props_ms = dict(self.valid_ms.properties)
+        props_ms["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU_Keyb_V2"
+        props_ms["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU_TEC."
+        ms = UdevInputRecord(self.valid_ms.device_node, self.valid_ms.syspath, self.valid_ms.parent_usb_syspath, props_ms, (), self.valid_ms.device_name)
+        backend = FakeDiscoveryBackend([kb, ms])
+        discovery = YYR4DeviceDiscovery(backend)
+        ident = discovery.select_single()
+        self.assertEqual(ident.manufacturer, "YOUYOU TEC.")
+        self.assertEqual(ident.product, "YOUYOU Keyb_V2")
+
+    def test_reversed_enc_layout(self):
+        # ENC layout is equivalent to safe layout when decoded properly
+        props_kb = dict(self.valid_kb.properties)
+        props_kb["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU Keyb_V2"
+        props_kb["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU TEC."
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props_kb, (), self.valid_kb.device_name)
+        props_ms = dict(self.valid_ms.properties)
+        props_ms["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU Keyb_V2"
+        props_ms["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU TEC."
+        ms = UdevInputRecord(self.valid_ms.device_node, self.valid_ms.syspath, self.valid_ms.parent_usb_syspath, props_ms, (), self.valid_ms.device_name)
+        backend = FakeDiscoveryBackend([kb, ms])
+        discovery = YYR4DeviceDiscovery(backend)
+        self.assertEqual(len(discovery.discover_all()), 1)
+
+    def test_both_manufacturer_rejected(self):
+        props_kb = dict(self.valid_kb.properties)
+        props_kb["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU TEC."
+        props_kb["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU TEC."
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props_kb, (), self.valid_kb.device_name)
+        backend = FakeDiscoveryBackend([kb, self.valid_ms])
+        discovery = YYR4DeviceDiscovery(backend)
+        self.assertEqual(len(discovery.discover_all()), 0)
+        self.assertEqual(discovery.snapshot_diagnostics().rejected_vendor_product, 1)
+
+    def test_both_product_rejected(self):
+        props_kb = dict(self.valid_kb.properties)
+        props_kb["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU Keyb_V2"
+        props_kb["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU Keyb_V2"
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props_kb, (), self.valid_kb.device_name)
+        backend = FakeDiscoveryBackend([kb, self.valid_ms])
+        discovery = YYR4DeviceDiscovery(backend)
+        self.assertEqual(len(discovery.discover_all()), 0)
+        self.assertEqual(discovery.snapshot_diagnostics().rejected_vendor_product, 1)
+
+    def test_both_manufacturer_mixed_rejected(self):
+        props_kb = dict(self.valid_kb.properties)
+        props_kb["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU TEC."
+        props_kb["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU_TEC."
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props_kb, (), self.valid_kb.device_name)
+        backend = FakeDiscoveryBackend([kb, self.valid_ms])
+        discovery = YYR4DeviceDiscovery(backend)
+        self.assertEqual(len(discovery.discover_all()), 0)
+
+    def test_reversed_duplicate_keyboard_fails(self):
+        props = dict(self.valid_kb.properties)
+        props["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU Keyb_V2"
+        props["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU TEC."
+        kb1 = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name)
+        kb2 = UdevInputRecord("/dev/input/event99", "/sys/kb2", self.valid_kb.parent_usb_syspath, props, (), self.valid_kb.device_name)
+
+        props_ms = dict(self.valid_ms.properties)
+        props_ms["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU Keyb_V2"
+        props_ms["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU TEC."
+        ms = UdevInputRecord(self.valid_ms.device_node, self.valid_ms.syspath, self.valid_ms.parent_usb_syspath, props_ms, (), self.valid_ms.device_name)
+
+        backend = FakeDiscoveryBackend([kb1, kb2, ms])
+        discovery = YYR4DeviceDiscovery(backend)
+        with self.assertRaises(DeviceAmbiguousError):
+            discovery.select_single()
+
+    def test_reversed_duplicate_mouse_fails(self):
+        props_kb = dict(self.valid_kb.properties)
+        props_kb["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU Keyb_V2"
+        props_kb["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU TEC."
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props_kb, (), self.valid_kb.device_name)
+
+        props = dict(self.valid_ms.properties)
+        props["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU Keyb_V2"
+        props["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU TEC."
+        ms1 = UdevInputRecord(self.valid_ms.device_node, self.valid_ms.syspath, self.valid_ms.parent_usb_syspath, props, (), self.valid_ms.device_name)
+        ms2 = UdevInputRecord("/dev/input/event99", "/sys/ms2", self.valid_ms.parent_usb_syspath, props, (), self.valid_ms.device_name)
+
+        backend = FakeDiscoveryBackend([kb, ms1, ms2])
+        discovery = YYR4DeviceDiscovery(backend)
+        with self.assertRaises(DeviceAmbiguousError):
+            discovery.select_single()
+
+    def test_reversed_different_parent_fails(self):
+        props_kb = dict(self.valid_kb.properties)
+        props_kb["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU Keyb_V2"
+        props_kb["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU TEC."
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props_kb, (), self.valid_kb.device_name)
+
+        props = dict(self.valid_ms.properties)
+        props["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU Keyb_V2"
+        props["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU TEC."
+        ms = UdevInputRecord(self.valid_ms.device_node, self.valid_ms.syspath, "/sys/usb2", props, (), self.valid_ms.device_name)
+
+        backend = FakeDiscoveryBackend([kb, ms])
+        discovery = YYR4DeviceDiscovery(backend)
+        with self.assertRaises(DeviceIncompleteError):
+            discovery.select_single()
+
+    def test_reversed_multiple_complete_groups_fails(self):
+        props_kb = dict(self.valid_kb.properties)
+        props_kb["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU Keyb_V2"
+        props_kb["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU TEC."
+        kb1 = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props_kb, (), self.valid_kb.device_name)
+
+        props = dict(self.valid_ms.properties)
+        props["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU Keyb_V2"
+        props["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU TEC."
+        ms1 = UdevInputRecord(self.valid_ms.device_node, self.valid_ms.syspath, self.valid_ms.parent_usb_syspath, props, (), self.valid_ms.device_name)
+
+        kb2 = UdevInputRecord("/dev/input/event98", "/sys/kb2", "/sys/usb2", props_kb, (), self.valid_kb.device_name)
+        ms2 = UdevInputRecord("/dev/input/event99", "/sys/ms2", "/sys/usb2", props, (), self.valid_ms.device_name)
+
+        backend = FakeDiscoveryBackend([kb1, ms1, kb2, ms2])
+        discovery = YYR4DeviceDiscovery(backend)
+        with self.assertRaises(DeviceAmbiguousError):
+            discovery.select_single()
+
+    def test_canonical_raw_mfg_safe_prod(self):
+        props_kb = dict(self.valid_kb.properties)
+        props_kb["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU TEC."
+        props_kb["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU_Keyb_V2"
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props_kb, (), self.valid_kb.device_name)
+        backend = FakeDiscoveryBackend([kb, self.valid_ms])
+        discovery = YYR4DeviceDiscovery(backend)
+        self.assertEqual(len(discovery.discover_all()), 1)
+
+    def test_canonical_safe_mfg_raw_prod(self):
+        props_kb = dict(self.valid_kb.properties)
+        props_kb["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU_TEC."
+        props_kb["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU Keyb_V2"
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props_kb, (), self.valid_kb.device_name)
+        backend = FakeDiscoveryBackend([kb, self.valid_ms])
+        discovery = YYR4DeviceDiscovery(backend)
+        self.assertEqual(len(discovery.discover_all()), 1)
+
+    def test_reversed_raw_prod_name_mfg_safe_mfg_name_prod(self):
+        props_kb = dict(self.valid_kb.properties)
+        props_kb["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU Keyb_V2"
+        props_kb["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU_TEC."
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props_kb, (), self.valid_kb.device_name)
+
+        props_ms = dict(self.valid_ms.properties)
+        props_ms["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU Keyb_V2"
+        props_ms["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU_TEC."
+        ms = UdevInputRecord(self.valid_ms.device_node, self.valid_ms.syspath, self.valid_ms.parent_usb_syspath, props_ms, (), self.valid_ms.device_name)
+
+        backend = FakeDiscoveryBackend([kb, ms])
+        discovery = YYR4DeviceDiscovery(backend)
+        self.assertEqual(len(discovery.discover_all()), 1)
+
+    def test_reversed_safe_prod_name_mfg_raw_mfg_name_prod(self):
+        props_kb = dict(self.valid_kb.properties)
+        props_kb["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU_Keyb_V2"
+        props_kb["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU TEC."
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props_kb, (), self.valid_kb.device_name)
+
+        props_ms = dict(self.valid_ms.properties)
+        props_ms["YYR4_NORMALIZED_MANUFACTURER"] = "YOUYOU_Keyb_V2"
+        props_ms["YYR4_NORMALIZED_PRODUCT"] = "YOUYOU TEC."
+        ms = UdevInputRecord(self.valid_ms.device_node, self.valid_ms.syspath, self.valid_ms.parent_usb_syspath, props_ms, (), self.valid_ms.device_name)
+
+        backend = FakeDiscoveryBackend([kb, ms])
+        discovery = YYR4DeviceDiscovery(backend)
+        self.assertEqual(len(discovery.discover_all()), 1)

@@ -52,3 +52,6 @@ All units are tested using injected `DiscoveryBackend` and `EventDeviceFactory` 
 - **Metadata Only**: Discovery is now a pure udev/sysfs metadata phase. It does not evaluate node read permissions.
 - **Identity Unaffected by Permissions**: Identity selection is completely decoupled from the current user filesystem permissions. Permission errors will no longer mask devices as simply "not found" or "incomplete".
 - **Strict Verification Boundary**: Permission checking (via `FilesystemIdentityPermissionChecker`) happens strictly *after* a single valid Identity is confirmed, and it only tests the `keyboard` and `mouse` device nodes exactly once.
+
+### Descriptor Pair-Aware Matching and Representation Independence
+YYR4 descriptors match using strict pair-aware layouts: 'canonical' (Manufacturer: YOUYOU TEC., Product: YOUYOU Keyb_V2) or 'reversed' (Product: YOUYOU TEC., Manufacturer: YOUYOU Keyb_V2). Each field within a layout is matched independently of its source representation (raw or safe udev forms), allowing any combination of raw/safe valid strings without treating them as independent loose aliases.

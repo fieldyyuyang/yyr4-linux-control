@@ -1,17 +1,35 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Mapping, Sequence, Tuple, Optional, List, Dict
+from typing import Mapping, Sequence, Tuple, Optional, List, Dict, Literal
 from typing import Protocol
 from .identity import YYR4Identity, InputInterface, InterfaceRole
 from .errors import DeviceNotFoundError, DeviceAmbiguousError, DeviceIncompleteError
 import re
 
-def _matches_canonical_descriptor(observed: str, canonical: str) -> bool:
-    if observed == canonical:
-        return True
-    if observed == canonical.replace(" ", "_"):
-        return True
-    return False
+CANONICAL_MANUFACTURER = "YOUYOU TEC."
+CANONICAL_PRODUCT = "YOUYOU Keyb_V2"
+
+def _classify_yyr4_descriptor_layout(
+    manufacturer: str,
+    product: str,
+) -> Literal["canonical", "reversed"] | None:
+    canonical_manufacturer_forms = {
+        CANONICAL_MANUFACTURER,
+        CANONICAL_MANUFACTURER.replace(" ", "_"),
+    }
+
+    canonical_product_forms = {
+        CANONICAL_PRODUCT,
+        CANONICAL_PRODUCT.replace(" ", "_"),
+    }
+
+    if manufacturer in canonical_manufacturer_forms and product in canonical_product_forms:
+        return "canonical"
+
+    if manufacturer in canonical_product_forms and product in canonical_manufacturer_forms:
+        return "reversed"
+
+    return None
 
 @dataclass(frozen=True)
 class UdevInputRecord:
@@ -43,7 +61,7 @@ class YYR4DeviceDiscovery:
 
     def discover_all(self) -> Tuple[YYR4Identity, ...]:
         records = self.backend.enumerate_input_records()
-        
+
         enumerated = len(records)
         matched = 0
         rejected_vp = 0
@@ -51,49 +69,46 @@ class YYR4DeviceDiscovery:
         incomplete = 0
         ambiguous = 0
         complete = 0
-        
+
         # Group by parent USB syspath
         groups: Dict[str, List[UdevInputRecord]] = {}
-        
+
         for rec in records:
             if rec.properties.get("ID_BUS") != "usb":
                 continue
-                
+
             vid = rec.properties.get("YYR4_NORMALIZED_VID", rec.properties.get("ID_VENDOR_ID", "")).lower()
             pid = rec.properties.get("YYR4_NORMALIZED_PID", rec.properties.get("ID_MODEL_ID", "")).lower()
             mfg = rec.properties.get("YYR4_NORMALIZED_MANUFACTURER", rec.properties.get("ID_VENDOR", ""))
             prod = rec.properties.get("YYR4_NORMALIZED_PRODUCT", rec.properties.get("ID_MODEL", ""))
-            
+
             if vid != "239a" or pid != "80f4":
                 rejected_vp += 1
                 continue
-                
-            if not _matches_canonical_descriptor(mfg, "YOUYOU TEC."):
+
+            layout = _classify_yyr4_descriptor_layout(mfg, prod)
+            if not layout:
                 rejected_vp += 1
                 continue
-                
-            if not _matches_canonical_descriptor(prod, "YOUYOU Keyb_V2"):
-                rejected_vp += 1
-                continue
-                
+
             if rec.properties.get("ID_USB_INTERFACE_NUM", "").zfill(2) != "02":
                 rejected_iface += 1
                 continue
-                
+
             matched += 1
             groups.setdefault(rec.parent_usb_syspath, []).append(rec)
-            
+
         identities = []
-        
+
         for parent, group in groups.items():
             kb_rec: Optional[UdevInputRecord] = None
             ms_rec: Optional[UdevInputRecord] = None
             group_ambiguous = False
-            
+
             for rec in group:
                 is_kb = rec.properties.get("ID_INPUT_KEYBOARD") == "1"
                 is_ms = rec.properties.get("ID_INPUT_MOUSE") == "1"
-                
+
                 # Check device name hints as extra safety
                 if "Keyboard" in rec.device_name and is_kb:
                     if kb_rec is None:
@@ -114,11 +129,11 @@ class YYR4DeviceDiscovery:
             if not kb_rec or not ms_rec:
                 incomplete += 1
                 continue
-                
+
             if kb_rec.device_node == ms_rec.device_node:
                 ambiguous += 1
                 continue
-                
+
             def select_stable_path(links: Tuple[str, ...], expected_suffix: str) -> Optional[str]:
                 for link in links:
                     if "by-id" in link and expected_suffix in link:
@@ -142,7 +157,7 @@ class YYR4DeviceDiscovery:
                 devlinks=kb_rec.devlinks,
                 stable_path=select_stable_path(kb_rec.devlinks, "event-kbd")
             )
-            
+
             ms_iface = InputInterface(
                 role=InterfaceRole.MOUSE,
                 device_node=ms_rec.device_node,
@@ -153,10 +168,10 @@ class YYR4DeviceDiscovery:
                 devlinks=ms_rec.devlinks,
                 stable_path=select_stable_path(ms_rec.devlinks, "event-mouse")
             )
-            
+
             serial_present = "ID_SERIAL_SHORT" in kb_rec.properties
             hint = kb_rec.properties.get("ID_USB_INTERFACE_NUM", "") # A non-sensitive hint
-            
+
             identities.append(YYR4Identity(
                 vendor_id="239a",
                 product_id="80f4",
@@ -169,7 +184,7 @@ class YYR4DeviceDiscovery:
                 local_identity_hint=hint
             ))
             complete += 1
-            
+
         self._diagnostics = DiscoveryDiagnostics(
             enumerated_records=enumerated,
             matched_records=matched,
@@ -179,22 +194,22 @@ class YYR4DeviceDiscovery:
             rejected_interface=rejected_iface,
             ambiguous_groups=ambiguous
         )
-        
+
         return tuple(identities)
 
     def select_single(self) -> YYR4Identity:
         identities = self.discover_all()
         diag = self.snapshot_diagnostics()
-        
+
         if len(identities) > 1 or diag.ambiguous_groups > 0:
             raise DeviceAmbiguousError(f"Ambiguity detected: {len(identities)} valid, {diag.ambiguous_groups} ambiguous, {diag.incomplete_groups} incomplete.")
-            
+
         if diag.incomplete_groups > 0 and len(identities) == 0:
             raise DeviceIncompleteError(f"Found {diag.incomplete_groups} incomplete YYR4-like groups, but no complete devices.")
-            
+
         if not identities:
             raise DeviceNotFoundError("No YYR4 devices found.")
-            
+
         return identities[0]
 
     def snapshot_diagnostics(self) -> DiscoveryDiagnostics:

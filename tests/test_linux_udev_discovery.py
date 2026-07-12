@@ -242,3 +242,101 @@ class TestFullLinuxBackendSixRecords(unittest.TestCase):
             self.assertEqual(len(identities), 0)
             diag = discovery.snapshot_diagnostics()
             self.assertEqual(diag.ambiguous_groups, 1)
+
+    def test_full_six_records_mixed_reversed(self):
+        # USB Parent with NO attributes to force fallback to device node properties
+        parent = FakePyudevDevice(None, "/sys/devices/pci0000:00/0000:00:14.0/usb1/1-1", {}, [], attributes={})
+
+        devices = []
+        # Target keyboard: reversed raw mfg, safe prod
+        kb_props = {
+            "ID_BUS": "usb",
+            "ID_USB_INTERFACE_NUM": "02",
+            "ID_INPUT_KEYBOARD": "1",
+            "NAME": '"Keyboard"',
+            "ID_VENDOR_ID": "239a", "ID_MODEL_ID": "80f4",
+            "ID_VENDOR": "YOUYOU Keyb_V2", "ID_MODEL": "YOUYOU_TEC."
+        }
+        kb_dev = FakePyudevDevice("/dev/input/event0", "/sys/kb", kb_props, ["/dev/input/by-id/kb-event-kbd"], parent)
+        devices.append(kb_dev)
+
+        # Target mouse: reversed safe mfg, raw prod
+        ms_props = {
+            "ID_BUS": "usb",
+            "ID_USB_INTERFACE_NUM": "02",
+            "ID_INPUT_MOUSE": "1",
+            "NAME": '"Mouse"',
+            "ID_VENDOR_ID": "239a", "ID_MODEL_ID": "80f4",
+            "ID_VENDOR": "YOUYOU_Keyb_V2", "ID_MODEL": "YOUYOU TEC."
+        }
+        ms_dev = FakePyudevDevice("/dev/input/event1", "/sys/ms", ms_props, ["/dev/input/by-path/ms-event-mouse"], parent)
+        devices.append(ms_dev)
+
+        # 4 extra non-yyr4 records (different VID/PID or missing fields)
+        for i in range(4):
+            ex_props = {
+                "ID_BUS": "usb",
+                "ID_USB_INTERFACE_NUM": "02",
+                "ID_INPUT_KEYBOARD": "0", "ID_INPUT_MOUSE": "0",
+                "ID_VENDOR_ID": "9999", "ID_MODEL_ID": "9999"
+            }
+            ex_dev = FakePyudevDevice(f"/dev/input/event{2+i}", f"/sys/ex{i}", ex_props, [], parent)
+            devices.append(ex_dev)
+
+        with patch.dict(sys.modules, {"pyudev": FakePyudevModule(devices)}):
+            backend = LinuxUdevDiscoveryBackend()
+            records = backend.enumerate_input_records()
+            self.assertEqual(len(records), 6) # Linux backend generated 6 records
+
+            discovery = YYR4DeviceDiscovery(backend)
+            identities = discovery.discover_all()
+
+            self.assertEqual(len(identities), 1)
+            self.assertEqual(identities[0].manufacturer, "YOUYOU TEC.")
+            self.assertEqual(identities[0].product, "YOUYOU Keyb_V2")
+
+            diag = discovery.snapshot_diagnostics()
+            self.assertEqual(diag.enumerated_records, 6)
+            self.assertEqual(diag.matched_records, 2)
+            self.assertEqual(diag.complete_groups, 1)
+            self.assertEqual(diag.ambiguous_groups, 0)
+
+    def test_priority_mix_canonical(self):
+        # 1. 原始manufacturer存在，原始product缺失，product来自ID_MODEL安全形式
+        parent = FakePyudevDevice(None, "/sys/usb", {}, [], attributes={"manufacturer": "YOUYOU TEC.\x00"})
+        dev = FakePyudevDevice("/dev/input/event0", "/sys/kb", {"NAME": '"Test Device"', "ID_MODEL": "YOUYOU_Keyb_V2"}, [], parent)
+        with patch.dict(sys.modules, {"pyudev": FakePyudevModule([dev])}):
+            backend = LinuxUdevDiscoveryBackend()
+            records = backend.enumerate_input_records()
+            self.assertEqual(records[0].properties["YYR4_NORMALIZED_MANUFACTURER"], "YOUYOU TEC.")
+            self.assertEqual(records[0].properties["YYR4_NORMALIZED_PRODUCT"], "YOUYOU_Keyb_V2")
+
+    def test_priority_mix_canonical_2(self):
+        # 2. 原始manufacturer缺失，manufacturer来自ID_VENDOR安全形式，原始product存在
+        parent = FakePyudevDevice(None, "/sys/usb", {}, [], attributes={"product": "YOUYOU Keyb_V2\x00"})
+        dev = FakePyudevDevice("/dev/input/event0", "/sys/kb", {"NAME": '"Test Device"', "ID_VENDOR": "YOUYOU_TEC."}, [], parent)
+        with patch.dict(sys.modules, {"pyudev": FakePyudevModule([dev])}):
+            backend = LinuxUdevDiscoveryBackend()
+            records = backend.enumerate_input_records()
+            self.assertEqual(records[0].properties["YYR4_NORMALIZED_MANUFACTURER"], "YOUYOU_TEC.")
+            self.assertEqual(records[0].properties["YYR4_NORMALIZED_PRODUCT"], "YOUYOU Keyb_V2")
+
+    def test_priority_mix_reversed(self):
+        # 3. 反向布局中manufacturer来自原始sysfs，product来自ID_MODEL安全形式
+        parent = FakePyudevDevice(None, "/sys/usb", {}, [], attributes={"manufacturer": "YOUYOU Keyb_V2\x00"})
+        dev = FakePyudevDevice("/dev/input/event0", "/sys/kb", {"NAME": '"Test Device"', "ID_MODEL": "YOUYOU_TEC."}, [], parent)
+        with patch.dict(sys.modules, {"pyudev": FakePyudevModule([dev])}):
+            backend = LinuxUdevDiscoveryBackend()
+            records = backend.enumerate_input_records()
+            self.assertEqual(records[0].properties["YYR4_NORMALIZED_MANUFACTURER"], "YOUYOU Keyb_V2")
+            self.assertEqual(records[0].properties["YYR4_NORMALIZED_PRODUCT"], "YOUYOU_TEC.")
+
+    def test_priority_mix_reversed_2(self):
+        # 4. 反向布局中manufacturer来自ID_VENDOR安全形式，product来自原始sysfs
+        parent = FakePyudevDevice(None, "/sys/usb", {}, [], attributes={"product": "YOUYOU TEC.\x00"})
+        dev = FakePyudevDevice("/dev/input/event0", "/sys/kb", {"NAME": '"Test Device"', "ID_VENDOR": "YOUYOU_Keyb_V2"}, [], parent)
+        with patch.dict(sys.modules, {"pyudev": FakePyudevModule([dev])}):
+            backend = LinuxUdevDiscoveryBackend()
+            records = backend.enumerate_input_records()
+            self.assertEqual(records[0].properties["YYR4_NORMALIZED_MANUFACTURER"], "YOUYOU_Keyb_V2")
+            self.assertEqual(records[0].properties["YYR4_NORMALIZED_PRODUCT"], "YOUYOU TEC.")
