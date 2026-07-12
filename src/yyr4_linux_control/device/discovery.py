@@ -6,10 +6,12 @@ from .identity import YYR4Identity, InputInterface, InterfaceRole
 from .errors import DeviceNotFoundError, DeviceAmbiguousError, DeviceIncompleteError
 import re
 
-def _normalize_name(s: str) -> str:
-    # Strip quotes that udev might have and normalize whitespace
-    s = s.strip("\"'")
-    return re.sub(r'\s+', ' ', s.strip())
+def _matches_canonical_descriptor(observed: str, canonical: str) -> bool:
+    if observed == canonical:
+        return True
+    if observed == canonical.replace(" ", "_"):
+        return True
+    return False
 
 @dataclass(frozen=True)
 class UdevInputRecord:
@@ -58,20 +60,20 @@ class YYR4DeviceDiscovery:
             if rec.properties.get("ID_BUS") != "usb":
                 continue
                 
-            vid = rec.properties.get("ID_VENDOR_ID", "").lower()
-            pid = rec.properties.get("ID_MODEL_ID", "").lower()
-            mfg = rec.properties.get("ID_VENDOR", "")
-            prod = rec.properties.get("ID_MODEL", "")
+            vid = rec.properties.get("YYR4_NORMALIZED_VID", rec.properties.get("ID_VENDOR_ID", "")).lower()
+            pid = rec.properties.get("YYR4_NORMALIZED_PID", rec.properties.get("ID_MODEL_ID", "")).lower()
+            mfg = rec.properties.get("YYR4_NORMALIZED_MANUFACTURER", rec.properties.get("ID_VENDOR", ""))
+            prod = rec.properties.get("YYR4_NORMALIZED_PRODUCT", rec.properties.get("ID_MODEL", ""))
             
             if vid != "239a" or pid != "80f4":
                 rejected_vp += 1
                 continue
                 
-            if _normalize_name(mfg) != "YOUYOU Keyb_V2":
+            if not _matches_canonical_descriptor(mfg, "YOUYOU TEC."):
                 rejected_vp += 1
                 continue
                 
-            if _normalize_name(prod) != "YOUYOU TEC.":
+            if not _matches_canonical_descriptor(prod, "YOUYOU Keyb_V2"):
                 rejected_vp += 1
                 continue
                 
@@ -161,8 +163,8 @@ class YYR4DeviceDiscovery:
             identities.append(YYR4Identity(
                 vendor_id="239a",
                 product_id="80f4",
-                manufacturer="YOUYOU Keyb_V2",
-                product="YOUYOU TEC.",
+                manufacturer="YOUYOU TEC.",
+                product="YOUYOU Keyb_V2",
                 usb_parent_syspath=parent,
                 keyboard=kb_iface,
                 mouse=ms_iface,

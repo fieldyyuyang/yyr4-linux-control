@@ -39,7 +39,7 @@
 
 
 ## Multi-Factor Identity Matching
-To safely acquire the device without risk of opening the users main keyboard, we strictly match the parent USB topology, vendor, product, and ensure exactly one keyboard and one mouse interface are present on interface 02. The discovery logic fails closed on any ambiguity.
+To safely acquire the device without risk of opening the users main keyboard, we strictly match the parent USB topology, vendor, product, and ensure exactly one keyboard and one mouse interface are present on interface 02. The discovery logic fails closed on any ambiguity. When normalizing USB descriptors, we prioritize `sysfs` descriptors to avoid `udev` space-to-underscore normalization issues, and use strict matching when using `udev` property fallbacks.
 
 ## Explicit Hardware Probe Authorizations (Milestone 1.3A+)
-Before any real hardware validation tool runs, users must explicitly acknowledge three factors: that the tool reads raw device access, that the transport profile is active, and that no system actions will run. Automatic authorizations are strictly forbidden.
+Before any real hardware validation tool runs, users must explicitly acknowledge three factors: that the tool reads raw device access, that the transport profile is active, and that no system actions will run. Automatic authorizations are strictly forbidden. Note: As of M1.3B-2A, we have only performed a controlled `pyudev` metadata read; no device node has been opened, and no input events have been read yet.

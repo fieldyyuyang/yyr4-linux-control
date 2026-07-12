@@ -9,8 +9,8 @@ Relying solely on `VID` (239A) and `PID` (80F4) is unsafe because USB identifier
 To validate a YYR4 device, we require:
 - USB bus type.
 - Exact VID (239A) and PID (80F4).
-- Manufacturer name containing `YOUYOU Keyb_V2`.
-- Product name containing `YOUYOU TEC.`.
+- Manufacturer name exactly `YOUYOU TEC.` (or `udev`-safe `YOUYOU_TEC.`). No substring or fuzzy matching allowed.
+- Product name exactly `YOUYOU Keyb_V2` (or `udev`-safe `YOUYOU_Keyb_V2`). Original underscores must be preserved. We prioritize reading the original USB parent `sysfs` descriptors, falling back to safe hex-decoded `ID_VENDOR_ENC` before falling back to normalized properties.
 - Exactly Interface 02.
 - A keyboard and a mouse event node, correctly named.
 
@@ -30,7 +30,8 @@ If the system detects multiple valid YYR4 devices, or multiple ambiguous interfa
 ## Main Keyboard Protection
 By strictly adhering to the vendor, product, and interface 02 topology, the discovery process naturally isolates itself from the user's main keyboard and mouse. We will never accidentally read them.
 
-## Current Stage Restrictions (Milestone 1.1)
+## Current Stage Restrictions (Milestone 1.3B-2A)
+- **No hardware execution yet**: We have performed a controlled `pyudev` metadata read to verify exact identity mappings in M1.3B-2, but we have **not opened any device node and not read any input events**. All M1.3B-2A fixes are validated purely through synthetic mock testing. The corrected real device discovery, permissions check, and event probe are still pending execution.
 - **No EVIOCGRAB**: We open the device purely read-only (`EvdevInputAdapter`) without taking exclusive control. This is for safe observation and parsing validation.
 - **No uinput**: We do not yet create virtual outputs.
 - **No daemon**: Everything runs in isolated processes for testing.

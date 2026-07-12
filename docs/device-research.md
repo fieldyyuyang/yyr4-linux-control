@@ -7,6 +7,7 @@ This document tracks the verified facts and unverified hypotheses regarding the 
 * **[Confirmed]** Product ID: `80f4`
 * **[Confirmed]** Manufacturer String: `YOUYOU TEC.`
 * **[Confirmed]** Product String: `YOUYOU Keyb_V2`
+* **[Observed]** `udev` may normalize spaces in `ID_VENDOR` and `ID_MODEL` to underscores (`YOUYOU_TEC.` and `YOUYOU_Keyb_V2`). Original strings are available via USB parent sysfs attributes.
 
 ## 2. Observed Linux Interfaces
 * **[Observed]** CDC ACM (Serial)
@@ -37,4 +38,4 @@ This document tracks the verified facts and unverified hypotheses regarding the 
 * **[Unverified]** Device-Side Persistence: It is unknown if the device can save Profiles or Macros internally.
 * **[Publicly stated]** Polling Rate: Product materials claim 125Hz. This is not yet a local observed fact.
 
-*Security Note: No complete device serial numbers or private user information shall be recorded in this repository.*
+*Security Note: No complete device serial numbers or private user information shall be recorded in this repository. In Milestone 1.3B-2, a controlled pyudev discovery read udev/sysfs metadata to verify exact identity mappings, but no device node was opened and no input events were read.*
