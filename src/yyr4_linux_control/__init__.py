@@ -26,6 +26,23 @@ from .observation import (
     ObservationPipeline,
     ObservationState,
     ObservationDiagnostics,
+    DeviceSelector,
+    RawInputStream,
+    RawInputStreamFactory,
+    TransportParserFactory,
+    DefaultTransportParserFactory,
+    ObservationError,
+    ObservationStateError,
+    ObservationDiscoveryError,
+    ObservationInputError,
+    ObservationConfigurationError,
+)
+
+from .integration import (
+    RuntimePreflight,
+    ProbeConfig,
+    ProbeResult,
+    ProbeRunner,
 )
 
 __all__ = [
@@ -54,4 +71,18 @@ __all__ = [
     "ObservationPipeline",
     "ObservationState",
     "ObservationDiagnostics",
+    "DeviceSelector",
+    "RawInputStream",
+    "RawInputStreamFactory",
+    "TransportParserFactory",
+    "DefaultTransportParserFactory",
+    "ObservationError",
+    "ObservationStateError",
+    "ObservationDiscoveryError",
+    "ObservationInputError",
+    "ObservationConfigurationError",
+    "RuntimePreflight",
+    "ProbeConfig",
+    "ProbeResult",
+    "ProbeRunner",
 ]

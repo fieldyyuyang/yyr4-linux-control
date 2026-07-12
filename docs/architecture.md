@@ -26,7 +26,7 @@ graph TD
 ```
 
 ## Process and Permission Boundaries
-1. **yyr4d (Daemon)**: Runs with sufficient privileges to use `EVIOCGRAB` on the YYR4's `evdev` nodes and write to `/dev/uinput`. The daemon operates strictly in userspace. Note: We are currently in Milestone 1.1, the daemon and uinput generation are not yet implemented. Only the pure device discovery and parser logic are verified via mock backends.
+1. **yyr4d (Daemon)**: Runs with sufficient privileges to use `EVIOCGRAB` on the YYR4's `evdev` nodes and write to `/dev/uinput`. The daemon operates strictly in userspace. Note: We are currently in Milestone 1.3A, preparing a read-only validation tool. The full daemon and uinput generation are not yet implemented.
 2. **control service**: Exposes the local Web API (`127.0.0.1` only). It must safely proxy configurations to `yyr4d`.
 3. **Web UI**: Runs in the browser unprivileged.
 

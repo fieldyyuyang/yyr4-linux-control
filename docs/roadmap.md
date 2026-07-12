@@ -15,6 +15,7 @@ This roadmap defines the sequential dependencies for the project. Moving to the 
 * **Milestone 1.0 (COMPLETED)**: Project bootstrap and transport-code parser core.
 * **Milestone 1.1 (COMPLETED)**: Safe device discovery and evdev input adapter.
 * **Milestone 1.2 (COMPLETED)**: Read-only control observation pipeline (simulated tests complete, read-only, fail-closed model).
+* **Milestone 1.3A**: Production composition and gated validation tool (implementation and simulated tests complete; controlled hardware validation pending).
 * **Goal**: A foundational daemon reading `evdev`.
 * **Deliverables**: Python daemon, precise `udev` rules.
 * **Validation Gate**: Reads inputs exclusively from the YYR4.

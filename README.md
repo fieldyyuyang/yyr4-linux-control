@@ -13,6 +13,7 @@ Device research and transport code auditing (Milestone 0) is complete. The Pytho
 - Milestone 1.0: Transport code parser core (Completed)
 - Milestone 1.1: Safe device discovery and evdev adapter (Completed - using mock backends)
 - Milestone 1.2: Read-only control observation pipeline (Completed - read-only observation, zero device execution)
+- Milestone 1.3A: Production composition and gated validation tool (implementation and simulated tests complete; controlled hardware validation pending)
 
 ## Core Principles
 * **Web UI First**: All user interactions are handled via a local Web UI.

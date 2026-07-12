@@ -40,3 +40,6 @@
 
 ## Multi-Factor Identity Matching
 To safely acquire the device without risk of opening the users main keyboard, we strictly match the parent USB topology, vendor, product, and ensure exactly one keyboard and one mouse interface are present on interface 02. The discovery logic fails closed on any ambiguity.
+
+## Explicit Hardware Probe Authorizations (Milestone 1.3A+)
+Before any real hardware validation tool runs, users must explicitly acknowledge three factors: that the tool reads raw device access, that the transport profile is active, and that no system actions will run. Automatic authorizations are strictly forbidden.
