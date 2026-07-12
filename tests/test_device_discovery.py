@@ -563,3 +563,118 @@ class TestDeviceDiscovery(unittest.TestCase):
         backend = FakeDiscoveryBackend([kb, ms])
         discovery = YYR4DeviceDiscovery(backend)
         self.assertEqual(len(discovery.discover_all()), 1)
+
+    def test_empty_device_name_keyboard_flag(self):
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, self.valid_kb.properties, (), "")
+        backend = FakeDiscoveryBackend([kb, self.valid_ms])
+        discovery = YYR4DeviceDiscovery(backend)
+        ident = discovery.select_single()
+        self.assertEqual(ident.keyboard.device_node, self.valid_kb.device_node)
+
+    def test_empty_device_name_mouse_flag(self):
+        ms = UdevInputRecord(self.valid_ms.device_node, self.valid_ms.syspath, self.valid_ms.parent_usb_syspath, self.valid_ms.properties, (), "")
+        backend = FakeDiscoveryBackend([self.valid_kb, ms])
+        discovery = YYR4DeviceDiscovery(backend)
+        ident = discovery.select_single()
+        self.assertEqual(ident.mouse.device_node, self.valid_ms.device_node)
+
+    def test_missing_device_name_keyboard_flag(self):
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, self.valid_kb.properties, (), None)
+        backend = FakeDiscoveryBackend([kb, self.valid_ms])
+        discovery = YYR4DeviceDiscovery(backend)
+        ident = discovery.select_single()
+        self.assertEqual(ident.keyboard.device_node, self.valid_kb.device_node)
+
+    def test_device_name_mouse_but_keyboard_flag(self):
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, self.valid_kb.properties, (), "Mouse")
+        backend = FakeDiscoveryBackend([kb, self.valid_ms])
+        discovery = YYR4DeviceDiscovery(backend)
+        ident = discovery.select_single()
+        self.assertEqual(ident.keyboard.device_node, self.valid_kb.device_node)
+
+    def test_device_name_keyboard_but_mouse_flag(self):
+        ms = UdevInputRecord(self.valid_ms.device_node, self.valid_ms.syspath, self.valid_ms.parent_usb_syspath, self.valid_ms.properties, (), "Keyboard")
+        backend = FakeDiscoveryBackend([self.valid_kb, ms])
+        discovery = YYR4DeviceDiscovery(backend)
+        ident = discovery.select_single()
+        self.assertEqual(ident.mouse.device_node, self.valid_ms.device_node)
+
+    def test_device_name_keyboard_no_flag_is_missing(self):
+        props = dict(self.valid_kb.properties)
+        props["ID_INPUT_KEYBOARD"] = "0"
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), "Keyboard")
+        backend = FakeDiscoveryBackend([kb, self.valid_ms])
+        discovery = YYR4DeviceDiscovery(backend)
+        with self.assertRaises(DeviceIncompleteError):
+            discovery.select_single()
+
+    def test_device_name_mouse_no_flag_is_missing(self):
+        props = dict(self.valid_ms.properties)
+        props["ID_INPUT_MOUSE"] = "0"
+        ms = UdevInputRecord(self.valid_ms.device_node, self.valid_ms.syspath, self.valid_ms.parent_usb_syspath, props, (), "Mouse")
+        backend = FakeDiscoveryBackend([self.valid_kb, ms])
+        discovery = YYR4DeviceDiscovery(backend)
+        with self.assertRaises(DeviceIncompleteError):
+            discovery.select_single()
+
+    def test_only_id_input_key_is_missing(self):
+        props = dict(self.valid_kb.properties)
+        props["ID_INPUT_KEYBOARD"] = "0"
+        props["ID_INPUT_KEY"] = "1"
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), "Keyboard")
+        backend = FakeDiscoveryBackend([kb, self.valid_ms])
+        discovery = YYR4DeviceDiscovery(backend)
+        with self.assertRaises(DeviceIncompleteError):
+            discovery.select_single()
+
+    def test_dual_role_flags_is_ambiguous(self):
+        props = dict(self.valid_kb.properties)
+        props["ID_INPUT_MOUSE"] = "1"
+        kb_and_ms = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), "Keyboard and Mouse")
+        backend = FakeDiscoveryBackend([kb_and_ms, self.valid_ms])
+        discovery = YYR4DeviceDiscovery(backend)
+        with self.assertRaises(DeviceAmbiguousError):
+            discovery.select_single()
+        self.assertEqual(discovery.snapshot_diagnostics().ambiguous_groups, 1)
+
+    def test_both_records_dual_flags_is_ambiguous(self):
+        props1 = dict(self.valid_kb.properties)
+        props1["ID_INPUT_MOUSE"] = "1"
+        r1 = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props1, (), "")
+
+        props2 = dict(self.valid_ms.properties)
+        props2["ID_INPUT_KEYBOARD"] = "1"
+        r2 = UdevInputRecord(self.valid_ms.device_node, self.valid_ms.syspath, self.valid_ms.parent_usb_syspath, props2, (), "")
+
+        backend = FakeDiscoveryBackend([r1, r2])
+        discovery = YYR4DeviceDiscovery(backend)
+        with self.assertRaises(DeviceAmbiguousError):
+            discovery.select_single()
+        self.assertEqual(discovery.snapshot_diagnostics().ambiguous_groups, 1)
+
+    def test_invalid_flag_values_rejected(self):
+        props = dict(self.valid_kb.properties)
+        props["ID_INPUT_KEYBOARD"] = "true" # Must be exactly "1"
+        kb = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), "Keyboard")
+        backend = FakeDiscoveryBackend([kb, self.valid_ms])
+        discovery = YYR4DeviceDiscovery(backend)
+        with self.assertRaises(DeviceIncompleteError):
+            discovery.select_single()
+
+    def test_keyboard_and_missing_is_incomplete(self):
+        props = dict(self.valid_ms.properties)
+        props["ID_INPUT_MOUSE"] = "0"
+        ms_missing = UdevInputRecord(self.valid_ms.device_node, self.valid_ms.syspath, self.valid_ms.parent_usb_syspath, props, (), "Mouse")
+        backend = FakeDiscoveryBackend([self.valid_kb, ms_missing])
+        discovery = YYR4DeviceDiscovery(backend)
+        with self.assertRaises(DeviceIncompleteError):
+            discovery.select_single()
+
+    def test_mouse_and_missing_is_incomplete(self):
+        props = dict(self.valid_kb.properties)
+        props["ID_INPUT_KEYBOARD"] = "0"
+        kb_missing = UdevInputRecord(self.valid_kb.device_node, self.valid_kb.syspath, self.valid_kb.parent_usb_syspath, props, (), "Keyboard")
+        backend = FakeDiscoveryBackend([kb_missing, self.valid_ms])
+        discovery = YYR4DeviceDiscovery(backend)
+        with self.assertRaises(DeviceIncompleteError):
+            discovery.select_single()

@@ -340,3 +340,147 @@ class TestFullLinuxBackendSixRecords(unittest.TestCase):
             records = backend.enumerate_input_records()
             self.assertEqual(records[0].properties["YYR4_NORMALIZED_MANUFACTURER"], "YOUYOU_Keyb_V2")
             self.assertEqual(records[0].properties["YYR4_NORMALIZED_PRODUCT"], "YOUYOU TEC.")
+
+    def test_full_six_records_real_evidence_structure(self):
+        # Fake pyudev Context -> LinuxUdevDiscoveryBackend -> UdevInputRecord -> YYR4DeviceDiscovery -> YYR4Identity
+        # R1: ID_INPUT=1, ID_INPUT_KEY=1, ID_INPUT_KEYBOARD=1, ID_INPUT_MOUSE missing or not 1, device_name=""
+        # R2: ID_INPUT=1, ID_INPUT_KEY missing or not 1, ID_INPUT_KEYBOARD missing or not 1, ID_INPUT_MOUSE=1, device_name=""
+
+        # 1. 2 YYR4 targets
+        kb_props = {
+            "ID_BUS": "usb",
+            "ID_VENDOR_ID": "239a",
+            "ID_MODEL_ID": "80f4",
+            "ID_VENDOR": "YOUYOU_TEC.",      # Safe manufacturer
+            "ID_MODEL": "YOUYOU Keyb_V2",    # Raw product
+            "ID_USB_INTERFACE_NUM": "02",
+            "ID_INPUT": "1",
+            "ID_INPUT_KEY": "1",
+            "ID_INPUT_KEYBOARD": "1"
+        }
+
+        ms_props = {
+            "ID_BUS": "usb",
+            "ID_VENDOR_ID": "239a",
+            "ID_MODEL_ID": "80f4",
+            "ID_VENDOR": "YOUYOU_TEC.",      # Safe manufacturer
+            "ID_MODEL": "YOUYOU Keyb_V2",    # Raw product
+            "ID_USB_INTERFACE_NUM": "02",
+            "ID_INPUT": "1",
+            "ID_INPUT_MOUSE": "1"
+        }
+
+        # 2. 4 irrelevant targets
+        irrelevant_records = []
+        for i in range(4):
+            ex_props = {
+                "ID_BUS": "usb",
+                "ID_VENDOR_ID": f"100{i}",
+                "ID_MODEL_ID": f"200{i}",
+                "ID_USB_INTERFACE_NUM": "01",
+                "ID_INPUT": "1"
+            }
+            irrelevant_records.append({
+                "sys_path": f"/sys/devices/fake/usb{i}/event{i+10}",
+                "device_node": f"/dev/input/event{i+10}",
+                "properties": ex_props,
+                "parent": {
+                    "sys_path": f"/sys/devices/fake/usb{i}",
+                    "attributes": {
+                        "idVendor": f"100{i}\n".encode(),
+                        "idProduct": f"200{i}\n".encode(),
+                        "manufacturer": b"FakeMfg\n",
+                        "product": b"FakeProd\n"
+                    }
+                }
+            })
+
+        class FakeDevice:
+            def __init__(self, spec):
+                self.sys_path = spec["sys_path"]
+                self.device_node = spec["device_node"]
+                self.properties = spec["properties"]
+
+                # Setup parent hierarchy
+                self.parent = self
+                parent_spec = spec.get("parent")
+                if parent_spec:
+                    class FakeParent:
+                        def __init__(self, p_spec):
+                            self.sys_path = p_spec["sys_path"]
+                            self.attributes = p_spec["attributes"]
+                        def find_parent(self, subsystem, devtype=None):
+                            return None
+                    self.parent_obj = FakeParent(parent_spec)
+                else:
+                    self.parent_obj = None
+
+            @property
+            def device_links(self):
+                return iter([])
+
+            def find_parent(self, subsystem, devtype=None):
+                return self.parent_obj
+
+        records_specs = [
+            {
+                "sys_path": "/sys/devices/fake/usb/event0",
+                "device_node": "/dev/input/event0",
+                "properties": kb_props,
+                "parent": {
+                    "sys_path": "/sys/devices/fake/usb",
+                    "attributes": {
+                        "idVendor": b"239a\n",
+                        "idProduct": b"80f4\n",
+                        "manufacturer": b"YOUYOU_TEC.\n",
+                        "product": b"YOUYOU Keyb_V2\n"
+                    }
+                }
+            },
+            {
+                "sys_path": "/sys/devices/fake/usb/event1",
+                "device_node": "/dev/input/event1",
+                "properties": ms_props,
+                "parent": {
+                    "sys_path": "/sys/devices/fake/usb",
+                    "attributes": {
+                        "idVendor": b"239a\n",
+                        "idProduct": b"80f4\n",
+                        "manufacturer": b"YOUYOU_TEC.\n",
+                        "product": b"YOUYOU Keyb_V2\n"
+                    }
+                }
+            }
+        ] + irrelevant_records
+
+        class FakeContext:
+            def list_devices(self, subsystem=None, **kwargs):
+                return [FakeDevice(spec) for spec in records_specs]
+
+        backend = LinuxUdevDiscoveryBackend()
+        backend._pyudev = type('FakePyudev', (), {'Context': FakeContext})
+
+        discovery = YYR4DeviceDiscovery(backend)
+        ident = discovery.select_single()
+
+        self.assertEqual(ident.vendor_id, "239a")
+        self.assertEqual(ident.product_id, "80f4")
+        self.assertEqual(ident.manufacturer, "YOUYOU TEC.")
+        self.assertEqual(ident.product, "YOUYOU Keyb_V2")
+
+        self.assertIsNotNone(ident.keyboard)
+        self.assertIsNotNone(ident.mouse)
+        self.assertEqual(ident.usb_parent_syspath, "/sys/devices/fake/usb")
+        self.assertEqual(ident.keyboard.usb_interface_number, "02")
+        self.assertEqual(ident.mouse.usb_interface_number, "02")
+        self.assertEqual(ident.keyboard.parent_usb_syspath, "/sys/devices/fake/usb")
+        self.assertEqual(ident.mouse.parent_usb_syspath, "/sys/devices/fake/usb")
+
+        diag = discovery.snapshot_diagnostics()
+        self.assertEqual(diag.enumerated_records, 6)
+        self.assertEqual(diag.matched_records, 2)
+        self.assertEqual(diag.complete_groups, 1)
+        self.assertEqual(diag.incomplete_groups, 0)
+        self.assertEqual(diag.ambiguous_groups, 0)
+        self.assertEqual(diag.rejected_vendor_product, 4)
+        self.assertEqual(diag.rejected_interface, 0)

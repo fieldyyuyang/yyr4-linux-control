@@ -51,3 +51,7 @@ graph TD
 * Device discovery purely evaluates udev metadata to establish device identity.
 * Identity selection logic does not depend on the executing user’s `os.access`.
 * The `FilesystemIdentityPermissionChecker` acts as the exclusive authority for node readability and executes strictly after device grouping is complete.
+
+### M1.3B-2I Role Classification Architecture
+* Role classification strictly uses authoritative udev properties (`ID_INPUT_KEYBOARD` and `ID_INPUT_MOUSE`).
+* The classification is fail-closed, rejecting dual-role nodes as ambiguous and keeping zero-role nodes as missing, ignoring arbitrary device `NAME` attributes that are subject to environmental variation.

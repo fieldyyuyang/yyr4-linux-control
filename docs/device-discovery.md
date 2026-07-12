@@ -38,7 +38,7 @@ By strictly adhering to the vendor, product, and interface 02 topology, the disc
 
 ## Optional Dependencies
 The core parsing logic remains completely pure Python and dependency-free.
-`evdev` and `pyudev` are specified as optional dependencies under `[project.optional-dependencies] linux-input`. 
+`evdev` and `pyudev` are specified as optional dependencies under `[project.optional-dependencies] linux-input`.
 They are lazily imported. If missing, the backend throws a `DependencyUnavailableError` instead of a hard crash.
 
 ## Mock Testing Strategy
@@ -55,3 +55,14 @@ All units are tested using injected `DiscoveryBackend` and `EventDeviceFactory` 
 
 ### Descriptor Pair-Aware Matching and Representation Independence
 YYR4 descriptors match using strict pair-aware layouts: 'canonical' (Manufacturer: YOUYOU TEC., Product: YOUYOU Keyb_V2) or 'reversed' (Product: YOUYOU TEC., Manufacturer: YOUYOU Keyb_V2). Each field within a layout is matched independently of its source representation (raw or safe udev forms), allowing any combination of raw/safe valid strings without treating them as independent loose aliases.
+
+### M1.3B-2I Property-Authoritative Role Classification
+- In M1.3B-2H-G, we executed a single fixed-hash, read-only metadata diagnosis.
+- We observed two target records within the same group and interface 02. One had `ID_INPUT_KEYBOARD=1` and the other `ID_INPUT_MOUSE=1`. However, both had an empty `device_name`.
+- The previous production classification incorrectly gated roles by requiring both the NAME token ("Keyboard"/"Mouse") and the dedicated udev property.
+- Since NAME is an optional and readable metadata field that can be empty, it must not act as an identity gate.
+- The new classification logic exclusively uses the dedicated udev properties (`ID_INPUT_KEYBOARD` and `ID_INPUT_MOUSE`) as authoritative.
+- Records with dual dedicated flags explicitly fail-closed (ambiguous).
+- Records with no dedicated flags explicitly remain MISSING.
+- A real identity validation after this fix is still pending. We have not checked the selected node read permission, nor run the real event Probe yet.
+- There is currently no evidence indicating that the Transport Profile affects role metadata. The Transport Profile does not need to be switched at this stage.

@@ -42,3 +42,9 @@ Currently, users *do not* need to switch to the Transport Profile. Implementatio
 - However, it was intentionally aborted by the safe wrapper because the discovery layer eagerly attempted `os.access` checks on unrelated nodes before completing identity matching.
 - **Zero Real Access Maintained**: No devices were opened, no events were read.
 - **Next Steps**: Following the M1.3B-2C decoupling patch, a single-run controlled discovery must be re-executed. The user still does not need to switch transmission configurations yet.
+
+### M1.3B-2I Role Classification Update
+- Following a read-only metadata diagnosis, it was identified that the original production logic improperly used the empty optional `NAME` attribute as a gate for role detection.
+- This has been corrected to use the dedicated `ID_INPUT_KEYBOARD` and `ID_INPUT_MOUSE` properties as authoritative sources.
+- No new real discovery, node reading, or event probe has been executed yet for the updated logic.
+- There is currently no evidence indicating that the Transport Profile affects role metadata. We do not need to switch Transport Profile yet.

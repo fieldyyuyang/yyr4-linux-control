@@ -4,6 +4,7 @@ from typing import Mapping, Sequence, Tuple, Optional, List, Dict, Literal
 from typing import Protocol
 from .identity import YYR4Identity, InputInterface, InterfaceRole
 from .errors import DeviceNotFoundError, DeviceAmbiguousError, DeviceIncompleteError
+from enum import Enum
 import re
 
 CANONICAL_MANUFACTURER = "YOUYOU TEC."
@@ -30,6 +31,30 @@ def _classify_yyr4_descriptor_layout(
         return "reversed"
 
     return None
+
+class _RecordRole(Enum):
+    KEYBOARD = "keyboard"
+    MOUSE = "mouse"
+    AMBIGUOUS = "ambiguous"
+    MISSING = "missing"
+
+def _classify_input_role(
+    record: UdevInputRecord,
+) -> _RecordRole:
+    keyboard = (
+        record.properties.get("ID_INPUT_KEYBOARD") == "1"
+    )
+    mouse = (
+        record.properties.get("ID_INPUT_MOUSE") == "1"
+    )
+
+    if keyboard and mouse:
+        return _RecordRole.AMBIGUOUS
+    if keyboard:
+        return _RecordRole.KEYBOARD
+    if mouse:
+        return _RecordRole.MOUSE
+    return _RecordRole.MISSING
 
 @dataclass(frozen=True)
 class UdevInputRecord:
@@ -106,24 +131,23 @@ class YYR4DeviceDiscovery:
             group_ambiguous = False
 
             for rec in group:
-                is_kb = rec.properties.get("ID_INPUT_KEYBOARD") == "1"
-                is_ms = rec.properties.get("ID_INPUT_MOUSE") == "1"
+                role = _classify_input_role(rec)
 
-                # Check device name hints as extra safety
-                if "Keyboard" in rec.device_name and is_kb:
+                if role == _RecordRole.AMBIGUOUS:
+                    group_ambiguous = True
+                elif role == _RecordRole.KEYBOARD:
                     if kb_rec is None:
                         kb_rec = rec
                     else:
-                        ambiguous += 1
                         group_ambiguous = True
-                elif "Mouse" in rec.device_name and is_ms:
+                elif role == _RecordRole.MOUSE:
                     if ms_rec is None:
                         ms_rec = rec
                     else:
-                        ambiguous += 1
                         group_ambiguous = True
 
             if group_ambiguous:
+                ambiguous += 1
                 continue
 
             if not kb_rec or not ms_rec:
