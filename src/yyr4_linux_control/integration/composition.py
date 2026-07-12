@@ -59,16 +59,20 @@ def build_linux_observation_pipeline(
         from yyr4_linux_control.device.linux_udev import LinuxUdevDiscoveryBackend
         from yyr4_linux_control.device.discovery import YYR4DeviceDiscovery
         from yyr4_linux_control.input.evdev_adapter import LinuxEvdevDeviceFactory
-        from yyr4_linux_control.input.clock import SystemMonotonicClock
+        from yyr4_linux_control.input.interfaces import SystemMonotonicClock
         from yyr4_linux_control.observation.interfaces import DefaultTransportParserFactory
     except ImportError as e:
         raise IntegrationDependencyError(f"Missing required Linux dependencies: {e}") from e
 
-    context = pyudev.Context()
-    backend = LinuxUdevDiscoveryBackend(context)
+    backend = LinuxUdevDiscoveryBackend()
     selector = YYR4DeviceDiscovery(backend)
 
-    event_device_factory = LinuxEvdevDeviceFactory()
+    try:
+        event_device_factory = LinuxEvdevDeviceFactory()
+    except Exception as e:
+        # Catch DependencyUnavailableError or similar from lazy load
+        raise IntegrationDependencyError(f"Missing required Linux dependencies: {e}") from e
+
     clock = SystemMonotonicClock()
     input_factory = LinuxRawInputStreamFactory(
         event_device_factory=event_device_factory,

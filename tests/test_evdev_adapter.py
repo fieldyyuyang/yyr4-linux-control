@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 import asyncio
 import sys
 from yyr4_linux_control.device.identity import YYR4Identity, InputInterface, InterfaceRole
@@ -183,12 +184,16 @@ class TestEvdevAdapter(unittest.IsolatedAsyncioTestCase):
             
         self.assertEqual(adapter.snapshot_diagnostics().close_count, 1)
 
+    @patch.dict(sys.modules, {"evdev": None})
     def test_missing_evdev(self):
-        if sys.modules.get("evdev"):
-            del sys.modules["evdev"]
-            
-        with self.assertRaises(DependencyUnavailableError):
+        with self.assertRaises(DependencyUnavailableError) as ctx:
             LinuxEvdevDeviceFactory()
+        self.assertIsInstance(ctx.exception.__cause__, ImportError)
+
+    def test_evdev_restored_after_patch(self):
+        # Regression test for sys.modules isolation
+        import evdev
+        self.assertEqual(evdev.__class__.__name__, "FakeEvdev")
 
     async def test_mouse_open_fail_rollback(self):
         self.factory.handles["/dev/kb"] = FakeEventDeviceHandle("/dev/kb", [])
