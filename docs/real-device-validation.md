@@ -28,7 +28,10 @@ All required authorizations are absolutely required before proceeding.
 ## Daily Profile EV_KEY Positive Control
 A previous Transport Profile probe run resulted in 0 observed raw events. However, the `raw_events_seen` counter in `ObservationPipeline` only increments for `EV_KEY` events because the underlying `EvdevInputAdapter` filters out non-key events (like `EV_REL` or `EV_SYN`). Therefore, the zero-event result cannot reliably prove that the Transport Profile uses a different communication layer entirely. There is currently no evidence requiring a shift to `hidraw`.
 
-To validate the `evdev` event chain correctly, the CLI now includes a `Daily Profile EV_KEY positive-control` mode (`--acknowledge-daily-profile-positive-control`). This mode specifically tests the formal `evdev` EV_KEY read path without enforcing the Transport mapping. A repaired, real Daily positive control run is pending.
+To validate the `evdev` event chain correctly, the CLI now includes a `Daily Profile EV_KEY positive-control` mode (`--acknowledge-daily-profile-positive-control`). This mode specifically tests the formal `evdev` EV_KEY read path without enforcing the Transport mapping. A repaired, real Daily positive control run successfully observed the A1 keypress. The previous no-action negative control run has been reclassified properly.
+
+## Validation Ledger
+The `validation-ledger.md` is the single source of truth for validation state. Unnecessary re-testing is strictly prohibited if a component is marked `VERIFIED` or `VERIFIED_WITH_LIMITATIONS`. The official physical naming convention (A1-A12, AL/AP/AR, etc.) MUST be prioritized in all validation logs. Transport A1 or full 24-op tests cannot be re-requested without explicit ledger triggers.
 
 ## Probe Constraints
 The probe is explicitly bounded by:

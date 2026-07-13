@@ -18,7 +18,8 @@ This roadmap defines the sequential dependencies for the project. Moving to the 
 * **Milestone 1.3B-2A**: implementation and simulated tests complete; controlled discovery re-validation pending.
 * **Milestone 1.3B-2I**: implementation and simulated verification complete; single-run identity and selected-node permission re-validation pending.
 * **Milestone 1.3B-2P**: formal event Probe diagnostics contract fixed and regression-tested; single bounded real rerun pending.
-* **Milestone 1.3B-2S**: maintained Daily Profile EV_KEY positive-control mode implemented and tested; single real Daily positive-control run pending.
+* **Milestone 1.3B-2S**: maintained Daily Profile EV_KEY positive-control mode implemented and tested; single real Daily positive-control run passed.
+* **Milestone 1.3B-2U**: consolidated evidence into `validation-ledger.md`; verified all hardware validation constraints and stopped duplicate testing loops.
 * **Goal**: A foundational daemon reading `evdev`.
 * **Deliverables**: Python daemon, precise `udev` rules.
 * **Validation Gate**: Reads inputs exclusively from the YYR4.
