@@ -62,7 +62,7 @@ AP -> Ctrl+Enter -> 输入“---” -> Ctrl+Enter
 
 ### M2.2 Action Execution Engine
 当前状态：
-NEXT
+COMPLETE
 
 范围：
 - 真实动作执行后端；
@@ -76,6 +76,9 @@ NEXT
 - 结构化执行结果。
 
 ### M2.3 Long-running daemon
+当前状态：
+NEXT
+
 范围：
 - yyr4d；
 - 配置加载；

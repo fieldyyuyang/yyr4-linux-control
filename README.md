@@ -10,7 +10,7 @@
 Device research, transport code auditing, safe device discovery, evdev input adapter logic, parser core, and validation infrastructure are complete.
 
 **Current development target:**
-**Milestone 2.2 — Action Execution Engine**
+**Milestone 2.3 — Long-running daemon**
 
 The project currently has NO functioning daemon, CLI, or Web UI, and cannot be used as a product yet. It is purely in the development phase.
 
@@ -44,6 +44,7 @@ The project currently has NO functioning daemon, CLI, or Web UI, and cannot be u
 * [Event Audit](docs/event-audit.md)
 * [Action Model](docs/action-model.md)
 * [Control Action Configuration](docs/control-action-configuration.md)
+* [Action Execution Engine](docs/action-execution-engine.md)
 * [Use Cases](docs/use-cases.md)
 * [Profile Library](docs/profile-library.md)
 * [Vibe Coding Approvals](docs/vibe-coding-approvals.md)

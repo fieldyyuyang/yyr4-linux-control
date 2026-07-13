@@ -35,11 +35,10 @@ graph TD
 2. **YYR4 Identity**: Input adapter reads and normalizes raw events.
 3. **Transport Parser**: Converts transmission sequences to Control semantics.
 4. **Official Control Event**: Maps cleanly using official naming.
-5. **Configuration Resolver**: Maps Control to Action definition.
-6. **Action Plan**: Generates deterministic ActionPlan.
-7. **Action Executor**: Executes actions isolating system side-effects.
-8. **Daemon Runtime**: Coordinates lifecycle and configuration loading.
-9. **CLI / GUI**: Presentation and configuration tools (no direct hardware access).
+5. **ActionResolver**: Maps `OfficialControlEvent` instances against a loaded user profile (`.toml`) to produce an `ActionPlan`.
+6. **ActionExecutionEngine**: Consumes `ActionPlan`, dispatches individual action steps to designated backends (e.g. `CommandRunner`, `DesktopInputBackend`), manages timeouts and cancellation, and halts sequences cleanly upon errors.
+7. **Daemon Runtime**: Coordinates lifecycle and configuration loading.
+8. **CLI / GUI**: Presentation and configuration tools (no direct hardware access).
 
 ## Fault Recovery & Extensions
 * Hotplug disconnections cause graceful release of `EVIOCGRAB`.

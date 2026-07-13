@@ -5,7 +5,7 @@ This file establishes strict behavioral constraints for AI Agents working on the
 ## Core Constraints
 1. **Documentation First**: Agents MUST plan and document changes before implementation.
 2. **Current Phase**: We are currently in **Milestone 2**.
-   * **Next Target**: Milestone 2.2 — Action Execution Engine
+   * **Next Target**: Milestone 2.3 — Long-running daemon
    * DO NOT start the udev rules generator yet.
    * DO NOT request repetitive hardware tests.
    * DO NOT create `/tmp` diagnostic script version cycles.
