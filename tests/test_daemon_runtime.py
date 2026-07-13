@@ -133,7 +133,7 @@ value = "hello"
         self.assertTrue(session.closed)
         self.assertEqual(len(self.executor.executed), 2)
 
-    async def test_unmapped_event(self):
+    async def test_unmapped_event_does_not_enter_queue(self):
         event = OfficialControlEvent(OfficialControl.A2, ControlPhase.DOWN, 100)
         session = FakeSession([event], hang=True)
         factory = FakeSessionFactory([session])
@@ -147,6 +147,47 @@ value = "hello"
         snap = runtime.snapshot()
         self.assertEqual(snap.unmapped_events, 1)
         self.assertEqual(snap.plans_enqueued, 0)
+
+    async def test_explicit_noop_enters_execution_queue(self):
+        with open(self.config_path, "w") as f:
+            f.write('schema_version = 1\n[controls.A1.action]\ntype = "noop"\n')
+            
+        event = OfficialControlEvent(OfficialControl.A1, ControlPhase.DOWN, 100)
+        session = FakeSession([event], hang=True)
+        factory = FakeSessionFactory([session])
+        runtime = DaemonRuntime(self.settings, factory, self.executor, self.clock)
+        
+        run_task = asyncio.create_task(runtime.run())
+        await asyncio.sleep(0.1)
+        runtime.request_stop()
+        await run_task
+        
+        snap = runtime.snapshot()
+        self.assertEqual(snap.plans_enqueued, 1)
+        self.assertEqual(snap.unmapped_events, 0)
+        self.assertEqual(snap.plans_executed, 1)
+
+    async def test_backend_unavailable_records_failure_without_stopping_runtime(self):
+        class FailingExecutor(ActionPlanExecutor):
+            async def execute(self, plan):
+                raise Exception("Backend unavailable")
+                
+        failing_executor = FailingExecutor()
+        
+        event = OfficialControlEvent(OfficialControl.A1, ControlPhase.DOWN, 100)
+        session = FakeSession([event], hang=True)
+        factory = FakeSessionFactory([session])
+        runtime = DaemonRuntime(self.settings, factory, failing_executor, self.clock)
+        
+        run_task = asyncio.create_task(runtime.run())
+        await asyncio.sleep(0.1)
+        runtime.request_stop()
+        await run_task
+        
+        snap = runtime.snapshot()
+        self.assertEqual(snap.plans_executed, 0)
+        self.assertEqual(snap.executions_failed, 1)
+        self.assertEqual(snap.state, DaemonState.STOPPED) # did not crash
 
     async def test_reconnect_backoff(self):
         s1 = FakeSession([], error=RecoverableSessionError("test disconnect"))

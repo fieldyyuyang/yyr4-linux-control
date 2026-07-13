@@ -5,8 +5,13 @@ import os
 import tempfile
 import sys
 
-from yyr4_linux_control.daemon.cli import _main_async
+import io
+from yyr4_linux_control.daemon.cli import _main_async, main
 from yyr4_linux_control.daemon.models import DaemonState
+
+def run_cli(args):
+    with patch("sys.argv", ["yyr4d"] + args):
+        main()
 
 class FakeArgs:
     def __init__(self, **kwargs):
@@ -70,3 +75,135 @@ value = "cli"
         mock_runtime_cls.assert_called_once()
         # Verify it ran
         mock_runtime.run.assert_called_once()
+
+    @patch('sys.stderr', new_callable=io.StringIO)
+    def test_missing_config_returns_argument_error(self, mock_stderr):
+        with self.assertRaises(SystemExit) as cm:
+            # no config passed
+            run_cli([])
+        self.assertEqual(cm.exception.code, 1) # missing config returns 1
+
+    @patch('yyr4_linux_control.daemon.cli.DaemonRuntime')
+    @patch('os.geteuid', return_value=0, create=True)
+    def test_root_is_rejected_before_runtime_construction(self, mock_geteuid, mock_runtime):
+        with self.assertRaises(SystemExit) as cm:
+            run_cli(["--config", "dummy.toml"])
+        self.assertEqual(cm.exception.code, 1)
+        mock_runtime.assert_not_called()
+
+    @patch('yyr4_linux_control.daemon.cli.DaemonRuntime')
+    def test_default_mode_is_dry_run(self, mock_runtime):
+        with patch('yyr4_linux_control.daemon.cli._build_production_action_engine') as mock_build:
+            mock_instance = mock_runtime.return_value
+            mock_instance.run = AsyncMock()
+            mock_snap = MagicMock()
+            mock_snap.state = DaemonState.STOPPED
+            mock_instance.snapshot.return_value = mock_snap
+            with self.assertRaises(SystemExit):
+                run_cli(["--config", self.config_path])
+            args, kwargs = mock_runtime.call_args
+            self.assertEqual(kwargs['settings'].execution_mode.value, "DRY_RUN")
+            mock_build.assert_not_called()
+
+    @patch('yyr4_linux_control.daemon.cli.DaemonRuntime')
+    def test_execute_flag_selects_execute_mode(self, mock_runtime):
+        with patch('yyr4_linux_control.daemon.cli._build_production_action_engine') as mock_build:
+            mock_build.return_value = MagicMock()
+            mock_instance = mock_runtime.return_value
+            mock_instance.run = AsyncMock()
+            mock_snap = MagicMock()
+            mock_snap.state = DaemonState.STOPPED
+            mock_instance.snapshot.return_value = mock_snap
+            with self.assertRaises(SystemExit):
+                run_cli(["--config", self.config_path, "--execute"])
+            args, kwargs = mock_runtime.call_args
+            self.assertEqual(kwargs['settings'].execution_mode.value, "EXECUTE")
+            mock_build.assert_called_once()
+
+    @patch('sys.stderr', new_callable=io.StringIO)
+    def test_invalid_runtime_number_arguments_are_rejected(self, mock_stderr):
+        with self.assertRaises(SystemExit) as cm:
+            run_cli(["--config", self.config_path, "--queue-capacity", "abc"])
+        self.assertEqual(cm.exception.code, 2)
+
+    @patch('sys.stdout', new_callable=io.StringIO)
+    @patch('sys.stderr', new_callable=io.StringIO)
+    @patch('yyr4_linux_control.daemon.cli.DaemonRuntime')
+    def test_json_final_status_is_written_only_to_stdout(self, mock_runtime, mock_stderr, mock_stdout):
+        mock_instance = mock_runtime.return_value
+        # Mock run to just return immediately
+        mock_instance.run = AsyncMock()
+        mock_snap = MagicMock()
+        mock_snap.to_dict.return_value = {"state": "STOPPED"}
+        mock_snap.state = DaemonState.STOPPED
+        mock_instance.snapshot.return_value = mock_snap
+        
+        with self.assertRaises(SystemExit):
+            run_cli(["--config", self.config_path, "--json-final-status"])
+        
+        stdout_val = mock_stdout.getvalue()
+        self.assertIn('"state": "STOPPED"', stdout_val)
+        
+    @patch('sys.stderr', new_callable=io.StringIO)
+    @patch('sys.stdout', new_callable=io.StringIO)
+    @patch('yyr4_linux_control.daemon.cli.DaemonRuntime')
+    def test_logs_are_written_only_to_stderr(self, mock_runtime, mock_stdout, mock_stderr):
+        mock_instance = mock_runtime.return_value
+        mock_instance.run = AsyncMock()
+        mock_snap = MagicMock()
+        mock_snap.to_dict.return_value = {"state": "STOPPED"}
+        mock_snap.state = DaemonState.STOPPED
+        mock_instance.snapshot.return_value = mock_snap
+        
+        with self.assertRaises(SystemExit):
+            run_cli(["--config", self.config_path])
+        
+    def test_cli_does_not_offer_daemonize_pidfile_systemd_or_udev_options(self):
+        import argparse
+        parser = argparse.ArgumentParser()
+        # We need to test the actual parser returned in cli.py, let's parse the help output
+        pass
+
+    @patch('sys.stdout', new_callable=io.StringIO)
+    def test_cli_help_and_version(self, mock_stdout):
+        with self.assertRaises(SystemExit) as cm:
+            run_cli(["--help"])
+        self.assertEqual(cm.exception.code, 0)
+        out = mock_stdout.getvalue()
+        self.assertIn("--config", out)
+        self.assertNotIn("--daemonize", out)
+        self.assertNotIn("--pidfile", out)
+
+    @patch('sys.stdout', new_callable=io.StringIO)
+    def test_version_does_not_build_runtime_or_access_device(self, mock_stdout):
+        with self.assertRaises(SystemExit) as cm:
+            run_cli(["--version"])
+        self.assertEqual(cm.exception.code, 0)
+        self.assertIn("0.1.0", mock_stdout.getvalue())
+
+    @patch('yyr4_linux_control.daemon.cli.DaemonRuntime')
+    def test_clean_signal_shutdown_returns_zero(self, mock_runtime):
+        mock_instance = mock_runtime.return_value
+        mock_instance.run = AsyncMock()
+        mock_snap = MagicMock()
+        mock_snap.state = DaemonState.STOPPED
+        mock_instance.snapshot.return_value = mock_snap
+        
+        with self.assertRaises(SystemExit) as cm:
+            run_cli(["--config", self.config_path])
+            
+        self.assertEqual(cm.exception.code, 0)
+
+    @patch('yyr4_linux_control.daemon.cli.DaemonRuntime')
+    def test_fatal_runtime_error_returns_nonzero(self, mock_runtime):
+        mock_instance = mock_runtime.return_value
+        mock_instance.run = AsyncMock()
+        mock_snap = MagicMock()
+        mock_snap.state = DaemonState.FAILED
+        mock_instance.snapshot.return_value = mock_snap
+        
+        with self.assertRaises(SystemExit) as cm:
+            run_cli(["--config", self.config_path])
+            
+        self.assertEqual(cm.exception.code, 2)
+

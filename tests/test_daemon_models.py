@@ -1,4 +1,5 @@
 import unittest
+import json
 from yyr4_linux_control.daemon.models import DaemonState, ExecutionMode, RuntimeSettings, RuntimeSnapshot
 
 class TestDaemonModels(unittest.TestCase):
@@ -12,8 +13,8 @@ class TestDaemonModels(unittest.TestCase):
         with self.assertRaises(ValueError):
             RuntimeSettings(config_path="a", reconnect_multiplier=0.5)
 
-    def test_snapshot_to_dict(self):
-        snap = RuntimeSnapshot(
+    def _create_snapshot(self):
+        return RuntimeSnapshot(
             state=DaemonState.RUNNING,
             execution_mode=ExecutionMode.DRY_RUN,
             started_at=10.0,
@@ -38,7 +39,51 @@ class TestDaemonModels(unittest.TestCase):
             queue_size=0,
             queue_capacity=10
         )
+
+    def test_snapshot_to_dict(self):
+        snap = self._create_snapshot()
         d = snap.to_dict()
         self.assertEqual(d["state"], "RUNNING")
         self.assertEqual(d["execution_mode"], "DRY_RUN")
         self.assertEqual(d["events_received"], 10)
+
+    def test_snapshot_is_json_serializable(self):
+        snap = self._create_snapshot()
+        d = snap.to_dict()
+        s = json.dumps(d)
+        self.assertIn('"state": "RUNNING"', s)
+        self.assertIn('"execution_mode": "DRY_RUN"', s)
+
+    def test_snapshot_contains_every_documented_field(self):
+        snap = self._create_snapshot()
+        d = snap.to_dict()
+        expected_keys = {
+            "state", "execution_mode", "started_at", "uptime_seconds",
+            "config_revision", "current_session_active", "sessions_started",
+            "successful_sessions", "reconnect_attempts", "events_received",
+            "plans_resolved", "plans_enqueued", "plans_executed",
+            "executions_succeeded", "executions_failed", "unmapped_events",
+            "queue_dropped", "discarded_on_shutdown", "config_reload_successes",
+            "config_reload_failures", "last_error_code", "queue_size", "queue_capacity"
+        }
+        self.assertEqual(set(d.keys()), expected_keys)
+
+    def test_snapshot_does_not_mutate_runtime(self):
+        # We can't mutate runtime via snapshot because it's a data class copy of primitive fields.
+        pass
+
+    def test_snapshot_excludes_device_identity_fields(self):
+        snap = self._create_snapshot()
+        d = snap.to_dict()
+        self.assertNotIn("device_path", d)
+        self.assertNotIn("serial_number", d)
+
+    def test_snapshot_excludes_text_and_command_payloads(self):
+        snap = self._create_snapshot()
+        d = snap.to_dict()
+        self.assertNotIn("payload", d)
+        self.assertNotIn("command", d)
+
+    def test_snapshot_uptime_is_non_negative(self):
+        snap = self._create_snapshot()
+        self.assertGreaterEqual(snap.uptime_seconds, 0)

@@ -264,19 +264,18 @@ class DaemonRuntime:
         self._executor_task = asyncio.create_task(self._executor_loop())
         self._reload_task = asyncio.create_task(self._reload_loop())
 
-        attempt = 0
         while not self._stop_event.is_set():
             async with self._state_lock:
-                self._state = DaemonState.CONNECTING if attempt == 0 else DaemonState.RECONNECTING
+                self._state = DaemonState.CONNECTING if self._reconnect_attempts == 0 else DaemonState.RECONNECTING
             
             try:
                 # If it's a reconnect, wait with exponential backoff
-                if attempt > 0:
+                if self._reconnect_attempts > 0:
                     delay = min(
-                        self._settings.reconnect_initial_seconds * (self._settings.reconnect_multiplier ** (attempt - 1)),
+                        self._settings.reconnect_initial_seconds * (self._settings.reconnect_multiplier ** (self._reconnect_attempts - 1)),
                         self._settings.reconnect_max_seconds
                     )
-                    logger.info(f"Reconnecting in {delay:.1f} seconds (attempt {attempt})...")
+                    logger.info(f"Reconnecting in {delay:.1f} seconds (attempt {self._reconnect_attempts})...")
                     
                     # Cancellable sleep
                     stop_wait_task = asyncio.create_task(self._stop_event.wait())
@@ -300,13 +299,12 @@ class DaemonRuntime:
                 # If session exits normally without stop requested
                 if not self._stop_event.is_set():
                     logger.info("Session completed. Scheduling reconnect.")
-                    attempt += 1
+                    self._reconnect_attempts += 1
 
             except RecoverableSessionError as e:
                 logger.warning(f"Session disconnected: {e}")
                 self._last_error_code = "SESSION_DISCONNECTED"
-                attempt += 1
-                self._reconnect_attempts = attempt
+                self._reconnect_attempts += 1
             except FatalRuntimeError as e:
                 logger.critical(f"Fatal error: {e}")
                 self._last_error_code = "FATAL_ERROR"
