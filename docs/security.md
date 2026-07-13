@@ -49,8 +49,8 @@ Before any real hardware validation tool runs, users must explicitly acknowledge
 * The separation ensures that missing read permissions map clearly to `IntegrationPermissionError` (or `PERMISSION_BLOCKED` via the probe tool) rather than misleadingly indicating device absence (`DeviceNotFoundError`).
 
 ## 安全实施顺序 (Phased Security Implementation)
-1. M2.1纯领域模型与dry-run，无系统副作用；
-2. M2.2集中封装真实副作用；
+1. M2.1纯领域模型与dry-run，无系统副作用 (已完成)；
+2. M2.2集中封装真实副作用 (NEXT)；
 3. M2.3 daemon使用最小权限；
 4. M4再实现精确udev/systemd部署；
 5. 禁止为了提前完成udev而阻塞核心运行时开发。

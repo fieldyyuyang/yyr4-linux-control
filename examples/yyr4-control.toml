@@ -1,0 +1,32 @@
+schema_version = 1
+
+[controls.A1.action]
+type = "hotkey"
+keys = ["CTRL", "SHIFT", "C"]
+
+[controls.A2.action]
+type = "hotkey"
+keys = ["CTRL", "SHIFT", "V"]
+
+[controls.AP.action]
+type = "macro"
+steps = [
+    { type = "hotkey", keys = ["CTRL", "ENTER"] },
+    { type = "text", value = "---" },
+    { type = "hotkey", keys = ["CTRL", "ENTER"] }
+]
+
+[controls.AL.action]
+type = "command"
+argv = ["echo", "AL triggered"]
+timeout_seconds = 5
+
+[controls.AR.action]
+type = "macro"
+steps = [
+    { type = "delay", milliseconds = 500 },
+    { type = "debug_log", message = "AR turned right" }
+]
+
+[controls.BL.action]
+type = "noop"

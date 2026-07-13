@@ -21,7 +21,7 @@ COMPLETE
 
 ### M2.1 Configurable Control-to-Action Runtime
 当前状态：
-NEXT
+COMPLETE
 
 准确范围：
 - OfficialControl枚举或等价领域类型；
@@ -61,6 +61,9 @@ A1 -> Ctrl+Shift+C
 AP -> Ctrl+Enter -> 输入“---” -> Ctrl+Enter
 
 ### M2.2 Action Execution Engine
+当前状态：
+NEXT
+
 范围：
 - 真实动作执行后端；
 - 快捷键注入抽象；
