@@ -77,3 +77,11 @@ Transport real-device testing is ONLY allowed to be triggered when one of the fo
 7.  A new functional target needs coverage that existing evidence does not supply.
 
 Even if triggered, only the minimal missing scope should be tested, not a full 24-operation sequence unless strictly necessary.
+
+## Product Route Constraints
+- 验证台账不决定产品开发优先级；
+- 已VERIFIED事项不得重复打开；
+- 当前Transport PARTIAL不阻断M2.1；
+- M2.1不依赖任何新硬件测试；
+- 下一次真实硬件测试预计在真正需要事件端到端验收的里程碑边界触发；
+- 用户操作必须使用官方名称。

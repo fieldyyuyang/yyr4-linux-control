@@ -4,7 +4,20 @@ This file establishes strict behavioral constraints for AI Agents working on the
 
 ## Core Constraints
 1. **Documentation First**: Agents MUST plan and document changes before implementation.
-2. **Verify Then Implement**: Agents MUST NOT write code for hardware features unless practically verified.
+2. **Current Phase**: We are currently in **Milestone 2**.
+   * **Next Target**: Milestone 2.1 — Configurable Control-to-Action Runtime
+   * DO NOT start the udev rules generator yet.
+   * DO NOT request repetitive hardware tests.
+   * DO NOT create `/tmp` diagnostic script version cycles.
+   * Git commits are ONLY allowed at complete milestone boundaries.
+   * ALL user operations MUST use official control names (A1-A12, AL/AP/AR, etc.).
+   * Any direction change MUST first update Project Charter and Roadmap and be confirmed by the user.
+3. **Reference Docs**: Before making decisions, you MUST read:
+   * [docs/project-charter.md](docs/project-charter.md)
+   * [docs/development-governance.md](docs/development-governance.md)
+   * [docs/roadmap.md](docs/roadmap.md)
+   * [docs/validation-ledger.md](docs/validation-ledger.md)
+4. **Verify Then Implement**: Agents MUST NOT write code for hardware features unless practically verified.
 3. **Do Not Guess Hardware Behavior**:
    * Agents MUST NOT assume encoders support physical press events (`[Unverified]`).
    * Agents MUST NOT assume the USB Audio interface acts as a MIDI interface (`[Unverified]`).

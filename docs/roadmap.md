@@ -2,123 +2,143 @@
 
 This roadmap defines the sequential dependencies for the project. Moving to the next milestone requires passing all gates of the current one.
 
-## Milestone 0: Device & Physical Event Audit (Completed)
-* **Goal**: Establish architecture and execute a read-only audit of raw `evdev` packets.
-* **Deliverables**: Product documentation, event log tables.
-* **Validation Gate**: Physical controls uniquely identified in logs.
-* **Security Gate**: No arbitrary code execution required for logging.
-* **Non-goals**: Writing the mapping engine.
-* **Exit Criteria**: A populated mapping table mapping physical inputs to logical IDs.
+## Milestone 1 — Device and input foundation
+状态：
+COMPLETE
 
-## Milestone 1: Userspace Transport Daemon MVP
+包括：
+- Discovery；
+- Identity；
+- Permission；
+- Parser；
+- Pipeline；
+- Probe基础设施；
+- Validation Ledger。
 
-* **Milestone 1.0 (COMPLETED)**: Project bootstrap and transport-code parser core.
-* **Milestone 1.1 (COMPLETED)**: Safe device discovery and evdev input adapter.
-* **Milestone 1.2 (COMPLETED)**: Read-only control observation pipeline (simulated tests complete, read-only, fail-closed model).
-* **Milestone 1.3B-2A**: implementation and simulated tests complete; controlled discovery re-validation pending.
-* **Milestone 1.3B-2I**: implementation and simulated verification complete; single-run identity and selected-node permission re-validation pending.
-* **Milestone 1.3B-2P**: formal event Probe diagnostics contract fixed and regression-tested; single bounded real rerun pending.
-* **Milestone 1.3B-2S**: maintained Daily Profile EV_KEY positive-control mode implemented and tested; single real Daily positive-control run passed.
-* **Milestone 1.3B-2U**: consolidated evidence into `validation-ledger.md`; verified all hardware validation constraints and stopped duplicate testing loops.
-* **Goal**: A foundational daemon reading `evdev`.
-* **Deliverables**: Python daemon, precise `udev` rules.
-* **Validation Gate**: Reads inputs exclusively from the YYR4.
-* **Security Gate**: Users not added to global `input` group.
-* **Non-goals**: Profile execution.
-* **Exit Criteria**: Terminal outputs raw events cleanly.
+当前Transport完整24项CLI端到端状态作为独立PARTIAL项，不阻断M1关闭。
 
-## Milestone 2: Device Learning & Event Normalization
-* **Goal**: Convert raw packets into `button.k01.down`.
-* **Deliverables**: Normalization module.
-* **Validation Gate**: Handles debounce and missing press/release states safely.
-* **Security Gate**: Drops invalid evdev types.
-* **Non-goals**: Graphical UI.
-* **Exit Criteria**: Monitor CLI shows normalized events.
+## Milestone 2 — Core runtime MVP
 
-## Milestone 3: uinput Mapping MVP & Level 1 Approvals
-* **Goal**: Hardcoded mappings resulting in virtual keystrokes (including Vibe Coding Level 1).
-* **Deliverables**: `uinput` sink.
-* **Validation Gate**: Virtual events register in X11 applications.
-* **Security Gate**: Panic/Emergency stop halts `uinput`.
-* **Non-goals**: JSON configurations.
-* **Exit Criteria**: Key presses emit synthesized events.
+### M2.1 Configurable Control-to-Action Runtime
+当前状态：
+NEXT
 
-## Milestone 4: Profile, Layer, and Action Engine
-* **Goal**: Schema-driven dynamic behavior.
-* **Deliverables**: SQLite DB, JSON schemas, Action model.
-* **Validation Gate**: Schema successfully validates or rejects inputs.
-* **Security Gate**: SQL injection protection.
-* **Non-goals**: Web frontend.
-* **Exit Criteria**: Daemon loads and runs valid JSON profiles.
+准确范围：
+- OfficialControl枚举或等价领域类型；
+- 官方名称与内部名称转换；
+- 版本化配置schema；
+- 选择一种配置格式，不同时支持多套格式；
+- 配置加载；
+- 配置校验；
+- HotkeyAction；
+- TextAction；
+- CommandAction；
+- DelayAction；
+- MacroAction；
+- NoOpAction；
+- Debug/LogAction；
+- ActionResolver；
+- ActionPlan；
+- DryRunExecutor；
+- 错误类型；
+- 自动测试；
+- 示例配置；
+- 用户文档。
 
-## Milestone 5: X11 Context Switching
-* **Goal**: Auto-switch Profiles based on Window properties.
-* **Deliverables**: Context Engine using X11/EWMH.
-* **Validation Gate**: Profile changes when clicking different apps.
-* **Security Gate**: Window matching handles malformed window titles gracefully.
-* **Non-goals**: Wayland support.
-* **Exit Criteria**: Active Profile updates accurately on focus change.
+明确不包括：
+- 真实桌面键盘注入；
+- daemon；
+- systemd；
+- udev；
+- GUI；
+- 软件包发布；
+- 真实硬件测试。
 
-## Milestone 6: Web API & WebSocket
-* **Goal**: Expose backend state securely.
-* **Deliverables**: FastAPI / HTTP interface.
-* **Validation Gate**: Clients can connect and read state.
-* **Security Gate**: Bound strictly to `127.0.0.1`.
-* **Non-goals**: LAN access.
-* **Exit Criteria**: API documentation generated and functional.
+M2.1完成标准：
+输入官方ControlEvent和配置后，稳定产生确定的ActionPlan。
+必须包含示例：
+A1 -> Ctrl+Shift+C
+AP -> Ctrl+Enter -> 输入“---” -> Ctrl+Enter
 
-## Milestone 7: Web UI MVP
-* **Goal**: Basic configuration dashboard.
-* **Deliverables**: React/Vite SPA.
-* **Validation Gate**: Can read and display current mappings.
-* **Security Gate**: CORS restricted.
-* **Non-goals**: Advanced visual editors.
-* **Exit Criteria**: User can change a binding via the browser.
+### M2.2 Action Execution Engine
+范围：
+- 真实动作执行后端；
+- 快捷键注入抽象；
+- 文本输入抽象；
+- argv命令执行；
+- timeout；
+- 取消；
+- 错误隔离；
+- 宏顺序执行；
+- 结构化执行结果。
 
-## Milestone 8: Visual Editors & CLI Adapters
-* **Goal**: Graphic layout editor, Macro designer, and Vibe Coding CLI Adapters.
-* **Deliverables**: Drag-and-drop interfaces, CLI matching logic.
-* **Validation Gate**: Complex macros save and execute correctly.
-* **Security Gate**: Command allowlists strictly enforced.
-* **Non-goals**: Third-party plugins.
-* **Exit Criteria**: Web UI replaces all manual config editing.
+### M2.3 Long-running daemon
+范围：
+- yyr4d；
+- 配置加载；
+- 事件循环；
+- 动作执行；
+- 设备断线重连；
+- 优雅停止；
+- 配置热加载；
+- 结构化日志；
+- 非root运行。
 
-## Milestone 9: Professional Profile Library
-* **Goal**: Bundled templates.
-* **Deliverables**: Pre-configured JSON profiles for the 14 use cases.
-* **Validation Gate**: Templates import without errors.
-* **Security Gate**: High-risk actions prompt users on import.
-* **Non-goals**: Community sharing hub.
-* **Exit Criteria**: 14 templates available in Web UI.
+### M2.4 Management CLI
+建议命令：
+- yyr4ctl validate
+- yyr4ctl status
+- yyr4ctl list-controls
+- yyr4ctl show-config
+- yyr4ctl reload
+- yyr4ctl dry-run A1
 
-## Milestone 10: Packaging
-* **Goal**: Distribution ready.
-* **Deliverables**: `systemd` user services, Debian `.deb`.
-* **Validation Gate**: Installs cleanly on Debian 13.
-* **Security Gate**: Permissions set according to least privilege.
-* **Non-goals**: Cross-platform installers.
-* **Exit Criteria**: `.deb` generates and installs successfully.
+## Milestone 3 — Layers and profiles
+包括：
+- 通用层；
+- 第一层至第八层；
+- active layer；
+- 层切换；
+- 每层独立动作；
+- 预设；
+- 导入导出；
+- schema迁移。
 
-## Milestone 11: Wayland Adapter
-* **Goal**: Context switching for Wayland compositors.
-* **Deliverables**: Desktop Adapter abstraction.
-* **Validation Gate**: Works on GNOME Wayland.
-* **Security Gate**: Complies with Wayland security models.
-* **Non-goals**: Supporting every minor compositor.
-* **Exit Criteria**: Context switches correctly under Wayland.
+## Milestone 4 — Linux integration and deployment
+此时才实现：
+- 精确udev规则；
+- 专用组或logind ACL；
+- systemd unit；
+- 安装与卸载；
+- 配置目录；
+- 日志管理；
+- 打包。
 
-## Milestone 12: Protocol Research & Level 3 Approvals
-* **Goal**: Investigate **[Planned]** RGB control, MIDI, persistence, and Prompt-Aware AI integrations.
-* **Deliverables**: Research docs, feature prototypes.
-* **Validation Gate**: Features tested against actual firmware.
-* **Security Gate**: Hardware bricking risks mitigated.
-* **Non-goals**: Guaranteeing support for locked hardware features.
-* **Exit Criteria**: Feasibility reports published.
+明确：
+Targeted Udev Rules属于M4，不是当前NEXT。
 
-## Milestone 13: Plugin Ecosystem
-* **Goal**: Third-party extensibility.
-* **Deliverables**: Plugin API.
-* **Validation Gate**: External scripts can register Actions.
-* **Security Gate**: Plugins run in restricted scopes.
-* **Non-goals**: Creating a marketplace.
-* **Exit Criteria**: An example plugin successfully integrates.
+## Milestone 5 — Optional graphical configurator
+包括：
+- 官方控件布局；
+- 动作编辑；
+- 层和预设管理；
+- daemon状态；
+- 日志与错误展示。
+
+GUI不直接访问设备，应调用daemon/API。
+
+## Milestone 6 — Final hardware and product acceptance
+采用代表性集中验收，不重复100次全量按键测试。
+至少包括：
+- 一个按键；
+- 一个旋钮左转；
+- 一个旋钮按压；
+- 一个旋钮右转；
+- 一个层切换；
+- 一个快捷键动作；
+- 一个文本宏；
+- 一个命令动作；
+- daemon重启；
+- 拔插恢复。
+
+只有发现具体异常时才扩大范围。

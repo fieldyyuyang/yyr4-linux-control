@@ -6,14 +6,13 @@
 `yyr4-linux-control` is a professional, context-aware control surface platform tailored for Debian 13 and modern Linux desktops. It maximizes the capabilities of the YYR4 programmable keypad (12 mechanical keys, 4 encoders) by providing context-aware app switching, multi-layer mapping, macros, and deep system integration.
 
 ## Current State
-**[Status: Milestone 1 - Parser Core]**
-Device research and transport code auditing (Milestone 0) is complete. The Python parser core and evdev adapter logic are implemented. The project currently has NO functioning daemon, CLI, or Web UI, and cannot be used as a product yet.
+**[Status: Milestone 1 - Device and Input Foundation Completed]**
+Device research, transport code auditing, safe device discovery, evdev input adapter logic, parser core, and validation infrastructure are complete.
 
-### Milestones
-- Milestone 1.0: Transport code parser core (Completed)
-- Milestone 1.1: Safe device discovery and evdev adapter (Completed - using mock backends)
-- Milestone 1.2: Read-only control observation pipeline (Completed - read-only observation, zero device execution)
-- Milestone 1.3A: Production composition and gated validation tool (implementation and simulated tests complete; controlled hardware validation pending)
+**Current development target:**
+**Milestone 2.1 — Configurable Control-to-Action Runtime**
+
+The project currently has NO functioning daemon, CLI, or Web UI, and cannot be used as a product yet. It is purely in the development phase.
 
 ## Core Principles
 * **Web UI First**: All user interactions are handled via a local Web UI.
@@ -32,14 +31,18 @@ Device research and transport code auditing (Milestone 0) is complete. The Pytho
 * **Capabilities**: Single keys, combinations, macros, command execution, system control.
 
 ## Documentation Index
-* [Product Vision](docs/product-vision.md)
+* [Project Charter](docs/project-charter.md)
+* [Development Governance](docs/development-governance.md)
+* [Development Roadmap](docs/roadmap.md)
 * [System Architecture](docs/architecture.md)
+* [Validation Ledger](docs/validation-ledger.md)
+* [Security Model](docs/security.md)
+* [Real Device Validation](docs/real-device-validation.md)
+* [Product Vision](docs/product-vision.md)
 * [Web UI Design](docs/web-ui.md)
 * [Device Research](docs/device-research.md)
 * [Event Audit](docs/event-audit.md)
 * [Action Model](docs/action-model.md)
 * [Use Cases](docs/use-cases.md)
 * [Profile Library](docs/profile-library.md)
-* [Security Model](docs/security.md)
-* [Development Roadmap](docs/roadmap.md)
 * [Vibe Coding Approvals](docs/vibe-coding-approvals.md)

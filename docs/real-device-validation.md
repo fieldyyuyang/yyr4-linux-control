@@ -33,6 +33,14 @@ To validate the `evdev` event chain correctly, the CLI now includes a `Daily Pro
 ## Validation Ledger
 The `validation-ledger.md` is the single source of truth for validation state. The repetitive hardware testing loop is officially CLOSED. Unnecessary re-testing is strictly prohibited if a component is marked `VERIFIED` or `VERIFIED_WITH_LIMITATIONS`. The official physical naming convention (A1-A12, AL/AP/AR, etc.) MUST be prioritized in all validation logs. We will not automatically schedule Transport A1 or full 24-op tests. Testing will only be triggered when the next functional milestone strictly demands real-time Transport events.
 
+**Product Route Constraints:**
+- 验证台账不决定产品开发优先级；
+- 已VERIFIED事项不得重复打开；
+- 当前Transport PARTIAL不阻断M2.1；
+- M2.1不依赖任何新硬件测试；
+- 下一次真实硬件测试预计在真正需要事件端到端验收的里程碑边界触发；
+- 用户操作必须使用官方名称。
+
 ## Probe Constraints
 The probe is explicitly bounded by:
 - Event count (`--max-events`): Events are strictly bounded.

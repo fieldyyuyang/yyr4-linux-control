@@ -30,14 +30,16 @@ graph TD
 2. **control service**: Exposes the local Web API (`127.0.0.1` only). It must safely proxy configurations to `yyr4d`.
 3. **Web UI**: Runs in the browser unprivileged.
 
-## Data Flow
-1. **device discovery**: `yyr4d` finds the YYR4 using stable udev properties.
-2. **event capture**: `yyr4d` reads raw events and claims them via `EVIOCGRAB`.
-3. **event normalization**: Translates raw evdev packets into abstract events (e.g., `button.k01.down`).
-4. **Context Engine**: Monitors active windows (e.g., `WM_CLASS`) and loads the corresponding Profile.
-5. **Vibe Coding CLI Adapter**: Intercepts if an AI CLI is active to provide Approval Layer overlays.
-6. **Action Engine**: Executes the resulting Action or Macro.
-7. **Output**: Synthesized through `uinput` or executed via safe subprocess.
+## Target Architecture Data Flow
+1. **Device Discovery**: `yyr4d` finds the YYR4 using stable udev properties.
+2. **YYR4 Identity**: Input adapter reads and normalizes raw events.
+3. **Transport Parser**: Converts transmission sequences to Control semantics.
+4. **Official Control Event**: Maps cleanly using official naming.
+5. **Configuration Resolver**: Maps Control to Action definition.
+6. **Action Plan**: Generates deterministic ActionPlan.
+7. **Action Executor**: Executes actions isolating system side-effects.
+8. **Daemon Runtime**: Coordinates lifecycle and configuration loading.
+9. **CLI / GUI**: Presentation and configuration tools (no direct hardware access).
 
 ## Fault Recovery & Extensions
 * Hotplug disconnections cause graceful release of `EVIOCGRAB`.
@@ -47,17 +49,37 @@ graph TD
 *See also: [Web UI](web-ui.md), [Security Model](security.md).*
 
 
-### M1.3B-2C Discovery Permission Separation
-* Device discovery purely evaluates udev metadata to establish device identity.
-* Identity selection logic does not depend on the executing user’s `os.access`.
-* The `FilesystemIdentityPermissionChecker` acts as the exclusive authority for node readability and executes strictly after device grouping is complete.
+## Layered Responsibilities
 
-### M1.3B-2I Role Classification Architecture
-* Role classification strictly uses authoritative udev properties (`ID_INPUT_KEYBOARD` and `ID_INPUT_MOUSE`).
-* The classification is fail-closed, rejecting dual-role nodes as ambiguous and keeping zero-role nodes as missing, ignoring arbitrary device `NAME` attributes that are subject to environmental variation.
+### Device layer
+只负责发现、身份和设备接口。
 
-### M1.3B-2K Identity and Permission Validation Probe
-* The temporary diagnostic script phase has ended. Identity/permission validation is now productized as a maintained tool within the `yyr4_linux_control.tools` namespace.
-* The tool operates independently, enumerating the real device context only once, selecting the formal Identity, and applying read access permission checks without actually opening the nodes, grabbing the devices, or reading events.
-* Real execution requires explicit `--real` authorization.
-* Sensitive device attributes (paths, serials, full identifiers) are stripped from structural validation reports to preserve user privacy.
+### Input layer
+只负责读取和归一化原始事件。
+
+### Transport layer
+只负责把传输序列转换为控件语义。
+
+### Control domain layer
+只使用官方名称。
+
+### Configuration layer
+把Control映射为Action定义。
+
+### Action planning layer
+生成确定、可测试、无副作用的ActionPlan。
+
+### Execution layer
+执行动作并隔离系统副作用。
+
+### Runtime layer
+负责daemon生命周期、重连、热加载和日志。
+
+### Presentation layer
+CLI和GUI，不直接访问硬件。
+
+同时明确：
+- Probe是诊断工具，不是主运行时；
+- validation ledger是验证决策来源，不是产品执行层；
+- udev属于部署层；
+- GUI不得直接承担设备访问。
