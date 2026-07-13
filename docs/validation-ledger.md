@@ -6,13 +6,11 @@ This document acts as the definitive source of truth for hardware and protocol v
 
 To avoid endlessly re-testing the hardware on every hypothesis, evidence is classified as follows:
 
-*   **Protocol mapping evidence**: The logical translation from raw packets to parsed control identities (e.g., F13 -> A1).
-*   **Parser fixture evidence**: Offline JSON files capturing raw events used for automated unit tests.
-*   **Automated regression evidence**: Python `unittest` suites ensuring software behaves deterministically based on fixtures.
-*   **Real-device identity evidence**: Proven ability to correctly find the YYR4 sysfs paths and properties locally via `udev`.
-*   **Real-device permission evidence**: Verified OS-level access to the nodes (e.g., readable via `input` group).
-*   **Real-device event-path evidence**: Success or failure reading live `evdev` raw packets using the `observe_probe` tool.
-*   **Historical or incomplete evidence**: Test runs that failed due to software bugs or invalid configurations, providing context but not proof.
+*   **Official vendor configuration evidence**: Used to prove the physical key names and key value mappings configured officially.
+*   **Historical operator real-device evidence**: Records extensive manual keystroke and knob validation already completed by the operator, though some early raw files weren't permanently saved.
+*   **Versioned parser fixture evidence**: Offline JSON files capturing raw events used for automated unit tests.
+*   **Automated regression evidence**: Python `unittest` suites ensuring software continually meets Parser, Discovery, Identity, Permission, and Pipeline contracts.
+*   **Current maintained CLI real-device evidence**: Proves the end-to-end behavior of the formal CLI on specific commits.
 
 ## 2. Official physical naming
 
@@ -37,36 +35,45 @@ All user-facing logs and documentation MUST use the official names.
 
 | ID | Subject | Expected Behavior | Current Status | Evidence Class | Durable Evidence Location | Relevant Commit | Limitations |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| V001 | A1-A12 key mapping | Maps F13-F24 to A1-A12 Down/Up | VERIFIED_WITH_LIMITATIONS | Parser fixture evidence | `tests/fixtures/m010_transport_streams.json` | 2445c8e | Origin of fixture is not strictly verified from real hardware in Git history. |
-| V002 | AL/AP/AR mapping | Maps Shift+F13-F15 to AL/AP/AR | VERIFIED_WITH_LIMITATIONS | Parser fixture evidence | `tests/fixtures/m010_transport_streams.json` | 2445c8e | Same as V001. |
-| V003 | BL/BP/BR mapping | Maps Shift+F16-F18 to BL/BP/BR | VERIFIED_WITH_LIMITATIONS | Parser fixture evidence | `tests/fixtures/m010_transport_streams.json` | 2445c8e | Same as V001. |
-| V004 | CL/CP/CR mapping | Maps Shift+F19-F21 to CL/CP/CR | VERIFIED_WITH_LIMITATIONS | Parser fixture evidence | `tests/fixtures/m010_transport_streams.json` | 2445c8e | Same as V001. |
-| V005 | DL/DP/DR mapping | Maps Shift+F22-F24 to DL/DP/DR | VERIFIED_WITH_LIMITATIONS | Parser fixture evidence | `tests/fixtures/m010_transport_streams.json` | 2445c8e | Same as V001. |
-| V006 | Shift pre-release | Modifiers released before key drop event gracefully | VERIFIED | Automated regression | `tests/test_transport_parser.py` | 2445c8e | None |
-| V007 | Repeated events | EV_KEY repeats (value=2) are ignored | VERIFIED | Automated regression | `tests/test_transport_parser.py` | 2445c8e | None |
-| V008 | Timeout/Reset | Modifiers timeout and reset correctly | VERIFIED | Automated regression | `tests/test_transport_parser.py` | 2445c8e | None |
-| V009 | VID/PID Discovery | pyudev discovers 239a:80f4 devices | VERIFIED | Real-device identity | `.local/hardware-validation/identity-permission-*` | d60cb37 | Relies on local udev rules matching current session. |
-| V010 | Descriptor spaces | Spaces are normalized to underscores in udev properties | VERIFIED | Real-device identity | `.local/hardware-validation/identity-permission-*` | 026a844 | Confirmed via local testing output logs. |
-| V011 | Role identification | Keyboard/Mouse separated by `ID_INPUT_*` properties | VERIFIED | Real-device identity | `.local/hardware-validation/identity-permission-*` | 026a844 | Confirmed via local testing output logs. |
-| V012 | Unique Identity | Same USB parent, specific interfaces pair uniquely | VERIFIED | Real-device identity | `.local/hardware-validation/identity-permission-*` | d60cb37 | Confirmed via local testing output logs. |
-| V013 | Node read permission | Selected evdev nodes are readable by user | VERIFIED | Real-device permission | `.local/hardware-validation/identity-permission-*` | d60cb37 | Requires user in `input` group. |
-| V014 | Daily Profile A1 EV_KEY positive control | A1 keypress yields > 0 raw EV_KEY events | VERIFIED | Real-device event-path | `.local/hardware-validation/daily-evkey-visible-*` | cacfa19 | Confirms evdev read path works for standard keys. |
-| V015 | No-action Daily run | Daily profile run without user interaction | INVALID_TEST | Historical evidence | `.local/hardware-validation/daily-evkey-positive-*` | cacfa19 | Originally mislabeled as failed positive control. User did not press keys. |
-| V016 | 1st Transport Probe AttributeError | Initial observe_probe crashed on diagnostics | INVALID_TEST | Historical evidence | `.local/hardware-validation/*` | d60cb37 | Software bug. |
-| V017 | Fixed Transport EV_KEY run | Transport profile emitted 0 EV_KEY events | PARTIAL | Real-device event-path | `.local/hardware-validation/*` | 909c04c | Could mean Transport doesn't use EV_KEY, or other layers are filtering. |
-| V018 | Full 24-op CLI verification | Test all 24 physical operations end-to-end | NOT_YET_VERIFIED | Pending | N/A | N/A | Requires resolution of Transport EV_KEY absence (V017). |
+| V001 | A1-A12 key mapping | Maps F13-F24 to A1-A12 Down/Up | VERIFIED | Official vendor configuration evidence | Official software / Historical operator real-device evidence | N/A | None |
+| V002 | AL/AP/AR mapping | Maps Shift+F13-F15 to AL/AP/AR | VERIFIED | Official vendor configuration evidence | Official software / Historical operator real-device evidence | N/A | None |
+| V003 | BL/BP/BR mapping | Maps Shift+F16-F18 to BL/BP/BR | VERIFIED | Official vendor configuration evidence | Official software / Historical operator real-device evidence | N/A | None |
+| V004 | CL/CP/CR mapping | Maps Shift+F19-F21 to CL/CP/CR | VERIFIED | Official vendor configuration evidence | Official software / Historical operator real-device evidence | N/A | None |
+| V005 | DL/DP/DR mapping | Maps Shift+F22-F24 to DL/DP/DR | VERIFIED | Official vendor configuration evidence | Official software / Historical operator real-device evidence | N/A | None |
+| V006 | Shift pre-release | Modifiers released before key drop event gracefully | VERIFIED | Automated regression evidence | `tests/test_transport_parser.py` | 2445c8e | None |
+| V007 | Repeated events | EV_KEY repeats (value=2) are ignored | VERIFIED | Automated regression evidence | `tests/test_transport_parser.py` | 2445c8e | None |
+| V008 | Timeout/Reset | Modifiers timeout and reset correctly | VERIFIED | Automated regression evidence | `tests/test_transport_parser.py` | 2445c8e | None |
+| V009 | VID/PID Discovery | pyudev discovers 239a:80f4 devices | VERIFIED | Historical operator real-device evidence | `.local/hardware-validation/identity-permission-*` | d60cb37 | Relies on local udev rules matching current session. |
+| V010 | Descriptor spaces | Spaces are normalized to underscores in udev properties | VERIFIED | Historical operator real-device evidence | `.local/hardware-validation/identity-permission-*` | 026a844 | Confirmed via local testing output logs. |
+| V011 | Role identification | Keyboard/Mouse separated by `ID_INPUT_*` properties | VERIFIED | Historical operator real-device evidence | `.local/hardware-validation/identity-permission-*` | 026a844 | Confirmed via local testing output logs. |
+| V012 | Unique Identity | Same USB parent, specific interfaces pair uniquely | VERIFIED | Historical operator real-device evidence | `.local/hardware-validation/identity-permission-*` | d60cb37 | Confirmed via local testing output logs. |
+| V013 | Node read permission | Selected evdev nodes are readable by user | VERIFIED | Historical operator real-device evidence | `.local/hardware-validation/identity-permission-*` | d60cb37 | Requires user in `input` group. |
+| V014 | Daily Profile A1 EV_KEY positive control | A1 keypress yields > 0 raw EV_KEY events | VERIFIED | Current maintained CLI real-device evidence | `.local/hardware-validation/daily-evkey-visible-*` | cacfa19 | Confirms evdev read path works for standard keys. |
+| V015 | No-action Daily run | Daily profile run without user interaction | INVALID_TEST | Current maintained CLI real-device evidence | `.local/hardware-validation/daily-evkey-positive-*` | cacfa19 | Originally mislabeled as failed positive control. User did not press keys. |
+| V016 | 1st Transport Probe AttributeError | Initial observe_probe crashed on diagnostics | INVALID_TEST | Current maintained CLI real-device evidence | `.local/hardware-validation/*` | d60cb37 | Software bug. |
+| V017 | Fixed Transport EV_KEY run | Transport profile emitted 0 EV_KEY events | PARTIAL | Current maintained CLI real-device evidence | `.local/hardware-validation/*` | 909c04c | Could mean Transport doesn't use EV_KEY, or other layers are filtering. |
+| V018 | Full 24-op CLI verification | Test all 24 physical operations end-to-end | NOT_YET_VERIFIED | Current maintained CLI real-device evidence | N/A | N/A | Requires resolution of Transport EV_KEY absence (V017). |
 
 ## 4. Retest triggers and rules
 
-**No unnecessary retesting.** If an item is VERIFIED or VERIFIED_WITH_LIMITATIONS, do not retest it via manual hardware manipulation unless one of the following triggers occurs:
+**No unnecessary retesting.** The repetitive hardware test loop is officially CLOSED.
+If an item is VERIFIED, do not retest it via manual hardware manipulation.
 
-1.  Transport Parser semantics change significantly.
+"Just to be sure" or "let's confirm again" is NOT a valid reason to request a hardware retest for:
+- Official configured key mappings
+- Parser foundational mappings
+- Shift/repeat/timeout/reset behavior
+- Discovery, Identity, and Permission checks
+- Daily A1 EV_KEY positive linkage
+
+Transport real-device testing is ONLY allowed to be triggered when one of the following occurs:
+
+1.  The next software milestone strictly depends on capturing live Transport events.
 2.  `EvdevInputAdapter` reading logic changes.
-3.  Discovery/Identity selection logic changes (requires udev/permission retest, not event retest).
-4.  ProbeRunner event path changes.
-5.  CLI profile modes are fundamentally altered.
-6.  The device firmware or configuration is known to have changed.
-7.  The existing evidence is proven to be invalid (e.g., simulated data mistaken for real data).
-8.  A new target needs coverage that existing evidence does not cover.
+3.  `ObservationPipeline` or `ProbeRunner` event path changes.
+4.  Transport Parser input contracts change.
+5.  Device firmware or hardware configuration is known to have changed.
+6.  Existing Transport evidence is proven invalid.
+7.  A new functional target needs coverage that existing evidence does not supply.
 
-"Just to be sure" is not a valid reason to request a hardware retest.
+Even if triggered, only the minimal missing scope should be tested, not a full 24-operation sequence unless strictly necessary.

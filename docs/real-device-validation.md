@@ -31,7 +31,7 @@ A previous Transport Profile probe run resulted in 0 observed raw events. Howeve
 To validate the `evdev` event chain correctly, the CLI now includes a `Daily Profile EV_KEY positive-control` mode (`--acknowledge-daily-profile-positive-control`). This mode specifically tests the formal `evdev` EV_KEY read path without enforcing the Transport mapping. A repaired, real Daily positive control run successfully observed the A1 keypress. The previous no-action negative control run has been reclassified properly.
 
 ## Validation Ledger
-The `validation-ledger.md` is the single source of truth for validation state. Unnecessary re-testing is strictly prohibited if a component is marked `VERIFIED` or `VERIFIED_WITH_LIMITATIONS`. The official physical naming convention (A1-A12, AL/AP/AR, etc.) MUST be prioritized in all validation logs. Transport A1 or full 24-op tests cannot be re-requested without explicit ledger triggers.
+The `validation-ledger.md` is the single source of truth for validation state. The repetitive hardware testing loop is officially CLOSED. Unnecessary re-testing is strictly prohibited if a component is marked `VERIFIED` or `VERIFIED_WITH_LIMITATIONS`. The official physical naming convention (A1-A12, AL/AP/AR, etc.) MUST be prioritized in all validation logs. We will not automatically schedule Transport A1 or full 24-op tests. Testing will only be triggered when the next functional milestone strictly demands real-time Transport events.
 
 ## Probe Constraints
 The probe is explicitly bounded by:
@@ -67,7 +67,4 @@ Currently, users *do not* need to switch to the Transport Profile. Implementatio
 
 ### M1.3B-2P Transport Profile Event Probe Contract Fix
 - The first formal Transport Profile event probe was executed but failed internally (`AttributeError` from `ProbeRunner` incorrectly accessing `pipeline.diagnostics` instead of `pipeline.snapshot_diagnostics()`).
-- The Identity and Permission validation steps continue to be verified successfully.
-- No valid Transport event validation conclusions could be drawn due to the internal crash.
-- This milestone corrected the internal public interface contract, ensuring the probe consumes the formal snapshot method correctly, and added a regression test for this specific crash path.
-- The repaired formal event probe is now pending a single real execution.
+- The repaired formal event probe yielded 0 EV_KEY events. This state is tracked separately in the validation ledger. No retest will be performed until necessary for functional progress.
