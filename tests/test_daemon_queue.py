@@ -1,0 +1,24 @@
+import asyncio
+import unittest
+from yyr4_linux_control.daemon.queue import DropNewestActionQueue
+from yyr4_linux_control.control.actions import ActionPlan, ResolutionStatus, NoOpAction
+from yyr4_linux_control.control.models import OfficialControl
+
+class TestDaemonQueue(unittest.IsolatedAsyncioTestCase):
+    def test_drop_newest(self):
+        q = DropNewestActionQueue(capacity=2)
+        plan1 = ActionPlan(OfficialControl.A1, ResolutionStatus.CONFIGURED, (NoOpAction(),))
+        plan2 = ActionPlan(OfficialControl.A2, ResolutionStatus.CONFIGURED, (NoOpAction(),))
+        plan3 = ActionPlan(OfficialControl.A3, ResolutionStatus.CONFIGURED, (NoOpAction(),))
+        
+        self.assertTrue(q.enqueue(plan1))
+        self.assertTrue(q.enqueue(plan2))
+        self.assertFalse(q.enqueue(plan3))
+        
+        self.assertEqual(q.size, 2)
+        self.assertEqual(q.dropped_count, 1)
+        
+        items = q.get_all_nowait()
+        self.assertEqual(len(items), 2)
+        self.assertEqual(items[0].control, OfficialControl.A1)
+        self.assertEqual(items[1].control, OfficialControl.A2)
