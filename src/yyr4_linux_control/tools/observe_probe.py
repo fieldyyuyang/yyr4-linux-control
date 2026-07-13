@@ -21,6 +21,7 @@ from yyr4_linux_control.integration.probe import (
     ProbeConfig,
     ProbeRunner,
     ProbeTermination,
+    ProbeProfileMode,
     validate_probe_authorization,
 )
 from yyr4_linux_control.integration.errors import (
@@ -109,6 +110,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Acknowledge that the device is running the Transport Profile."
     )
     auth_group.add_argument(
+        "--acknowledge-daily-profile-positive-control", action="store_true",
+        help="Acknowledge that the device is running the Daily Profile for EV_KEY positive control."
+    )
+    auth_group.add_argument(
         "--acknowledge-no-actions", action="store_true",
         help="Acknowledge that no system actions will be executed by this tool."
     )
@@ -125,9 +130,9 @@ def main() -> int:
         
     args = parser.parse_args()
     
-    # 1. Preflight check
-    preflight = check_runtime_preflight()
+    # 1. Preflight only mode
     if args.preflight:
+        preflight = check_runtime_preflight()
         if args.json:
             out = {
                 "python_supported": preflight.python_supported,
@@ -151,6 +156,7 @@ def main() -> int:
     auth = ProbeAuthorization(
         acknowledge_read_only_device_access=args.acknowledge_read_only_device_access,
         acknowledge_current_profile_is_transport_profile=args.acknowledge_transport_profile_active,
+        acknowledge_daily_profile_positive_control=args.acknowledge_daily_profile_positive_control,
         acknowledge_no_actions_will_run=args.acknowledge_no_actions,
     )
     try:
@@ -159,6 +165,7 @@ def main() -> int:
         _die(EXIT_ARGS, f"Authorization failed: {e}")
 
     # 3. Environment readiness check (post-auth)
+    preflight = check_runtime_preflight()
     if not preflight.ready_for_discovery:
         _die(EXIT_PREFLIGHT, "Environment not ready for discovery (run --preflight for details).")
 
@@ -219,10 +226,13 @@ async def _async_main(args: argparse.Namespace, config: ProbeConfig) -> int:
         transport_source_id="yyr4:keyboard"
     )
 
+    profile_mode = ProbeProfileMode.TRANSPORT.value if args.acknowledge_transport_profile_active else ProbeProfileMode.DAILY_EVKEY_POSITIVE_CONTROL.value
+
     # 9. Setup pipeline cancellation signaling
     runner = ProbeRunner(
         pipeline=fixed_pipeline,
         config=config,
+        profile_mode=profile_mode,
         monotonic_clock=time.monotonic,
     )
     
@@ -252,6 +262,7 @@ async def _async_main(args: argparse.Namespace, config: ProbeConfig) -> int:
     if args.json:
         out = {
             "termination": result.termination.name,
+            "profile_mode": result.profile_mode,
             "elapsed_seconds": result.elapsed_seconds,
             "error_type": result.error_type,
             "error_message": result.error_message,
@@ -288,6 +299,7 @@ async def _async_main(args: argparse.Namespace, config: ProbeConfig) -> int:
     else:
         print("--- Probe Results ---")
         print(f"Termination: {result.termination.name}")
+        print(f"Profile Mode: {result.profile_mode}")
         print(f"Elapsed: {result.elapsed_seconds:.2f}s")
         if result.error_type:
             print(f"Error: {result.error_type} - {result.error_message}")

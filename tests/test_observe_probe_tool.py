@@ -68,6 +68,30 @@ class TestObserveProbeTool(unittest.TestCase):
     @patch("sys.argv", [
         "observe_probe.py",
         "--acknowledge-read-only-device-access",
+        "--acknowledge-no-actions"
+    ])
+    @patch("sys.stderr.write")
+    def test_missing_profile_auth_rejects(self, mock_stderr):
+        with self.assertRaises(SystemExit) as ctx:
+            main()
+        self.assertEqual(ctx.exception.code, EXIT_ARGS)
+
+    @patch("sys.argv", [
+        "observe_probe.py",
+        "--acknowledge-read-only-device-access",
+        "--acknowledge-transport-profile-active",
+        "--acknowledge-daily-profile-positive-control",
+        "--acknowledge-no-actions"
+    ])
+    @patch("sys.stderr.write")
+    def test_both_profile_auths_rejects(self, mock_stderr):
+        with self.assertRaises(SystemExit) as ctx:
+            main()
+        self.assertEqual(ctx.exception.code, EXIT_ARGS)
+
+    @patch("sys.argv", [
+        "observe_probe.py",
+        "--acknowledge-read-only-device-access",
         "--acknowledge-transport-profile-active",
         "--acknowledge-no-actions"
     ])
@@ -205,6 +229,7 @@ class TestObserveProbeTool(unittest.TestCase):
 
         result_mock = ProbeResult(
             termination=ProbeTermination.OBSERVATION_ERROR,
+            profile_mode="transport",
             events=(),
             elapsed_seconds=0.1,
             diagnostics=diag_mock,
@@ -249,7 +274,6 @@ class TestObserveProbeTool(unittest.TestCase):
         
         runner_mock = MagicMock()
         from yyr4_linux_control.integration.probe import ProbeResult, ProbeTermination
-        from yyr4_linux_control.observation.diagnostics import ObservationDiagnostics
         
         diag_mock = MagicMock()
         diag_mock.discovery_attempts = 1
@@ -269,6 +293,7 @@ class TestObserveProbeTool(unittest.TestCase):
 
         result_mock = ProbeResult(
             termination=ProbeTermination.TIMEOUT,
+            profile_mode="transport",
             events=(),
             elapsed_seconds=0.1,
             diagnostics=diag_mock

@@ -49,28 +49,20 @@ class FakePipeline:
 class TestProbeAuthorization(unittest.TestCase):
 
     def test_authorization_all_true(self):
-        auth = ProbeAuthorization(True, True, True)
+        auth = ProbeAuthorization(True, True, False, True)
         validate_probe_authorization(auth)  # Should not raise
 
     def test_authorization_combinations(self):
-        # 8 combinations, only (True, True, True) passes
-        for a in (True, False):
-            for b in (True, False):
-                for c in (True, False):
-                    auth = ProbeAuthorization(a, b, c)
-                    if a and b and c:
-                        validate_probe_authorization(auth)
-                    else:
-                        with self.assertRaises(IntegrationSafetyError) as ctx:
-                            validate_probe_authorization(auth)
-                        if not a:
-                            self.assertIn("read-only", str(ctx.exception))
-                        elif not b:
-                            self.assertIn("transport profile", str(ctx.exception))
-                        elif not c:
-                            self.assertIn("no actions", str(ctx.exception))
-
-
+        import itertools
+        for a, b, c, d in itertools.product([True, False], repeat=4):
+            auth = ProbeAuthorization(a, b, c, d)
+            if a and b and not c and d:
+                validate_probe_authorization(auth)
+            elif a and not b and c and d:
+                validate_probe_authorization(auth)
+            else:
+                with self.assertRaises(IntegrationSafetyError):
+                    validate_probe_authorization(auth)
 class TestProbeConfig(unittest.TestCase):
 
     def test_default_valid(self):
@@ -132,7 +124,7 @@ class TestProbeRunner(unittest.IsolatedAsyncioTestCase):
     async def test_normal_eof(self):
         pipeline = FakePipeline([self.dummy_event])
         config = ProbeConfig(max_control_events=10)
-        runner = ProbeRunner(pipeline, config, self.fake_clock)
+        runner = ProbeRunner(pipeline, config, "transport", self.fake_clock)
 
         self.clock_val = 1.0
         result = await runner.run()
@@ -145,7 +137,7 @@ class TestProbeRunner(unittest.IsolatedAsyncioTestCase):
     async def test_event_limit(self):
         pipeline = FakePipeline([self.dummy_event, self.dummy_event, self.dummy_event])
         config = ProbeConfig(max_control_events=2)
-        runner = ProbeRunner(pipeline, config, self.fake_clock)
+        runner = ProbeRunner(pipeline, config, "transport", self.fake_clock)
 
         result = await runner.run()
 
@@ -156,7 +148,7 @@ class TestProbeRunner(unittest.IsolatedAsyncioTestCase):
     async def test_timeout(self):
         pipeline = FakePipeline([self.dummy_event], sleep_time=0.2)
         config = ProbeConfig(timeout_seconds=0.05)
-        runner = ProbeRunner(pipeline, config, self.fake_clock)
+        runner = ProbeRunner(pipeline, config, "transport", self.fake_clock)
 
         result = await runner.run()
 
@@ -168,7 +160,7 @@ class TestProbeRunner(unittest.IsolatedAsyncioTestCase):
         pipeline = FakePipeline([])
         pipeline.error_to_raise = ObservationInputError("Failed at /home/user/path")
         config = ProbeConfig()
-        runner = ProbeRunner(pipeline, config, self.fake_clock)
+        runner = ProbeRunner(pipeline, config, "transport", self.fake_clock)
 
         result = await runner.run()
 
@@ -181,7 +173,7 @@ class TestProbeRunner(unittest.IsolatedAsyncioTestCase):
         pipeline = FakePipeline([])
         pipeline.cancel_to_raise = True
         config = ProbeConfig()
-        runner = ProbeRunner(pipeline, config, self.fake_clock)
+        runner = ProbeRunner(pipeline, config, "transport", self.fake_clock)
 
         with self.assertRaises(asyncio.CancelledError):
             await runner.run()
@@ -201,14 +193,14 @@ class TestProbeRunner(unittest.IsolatedAsyncioTestCase):
         pipeline = FakePipeline([self.dummy_event, synth_event])
 
         config = ProbeConfig(include_synthetic=False)
-        runner = ProbeRunner(pipeline, config, self.fake_clock)
+        runner = ProbeRunner(pipeline, config, "transport", self.fake_clock)
         result = await runner.run()
 
         self.assertEqual(len(result.events), 1)
         self.assertFalse(result.events[0].synthetic)
 
         config2 = ProbeConfig(include_synthetic=True)
-        runner2 = ProbeRunner(FakePipeline([self.dummy_event, synth_event]), config2, self.fake_clock)
+        runner2 = ProbeRunner(FakePipeline([self.dummy_event, synth_event]), config2, "transport", self.fake_clock)
         result2 = await runner2.run()
         self.assertEqual(len(result2.events), 2)
 
@@ -218,7 +210,7 @@ class TestProbeRunner(unittest.IsolatedAsyncioTestCase):
         # So it should timeout during the 3rd event, proving it's a total timeout.
         pipeline = FakePipeline([self.dummy_event, self.dummy_event, self.dummy_event], sleep_time=0.03)
         config = ProbeConfig(timeout_seconds=0.07)
-        runner = ProbeRunner(pipeline, config, self.fake_clock)
+        runner = ProbeRunner(pipeline, config, "transport", self.fake_clock)
 
         result = await runner.run()
         self.assertEqual(result.termination, ProbeTermination.TIMEOUT)
@@ -249,7 +241,7 @@ class TestProbeRunner(unittest.IsolatedAsyncioTestCase):
 
         pipeline = WrapperPipeline()
         config = ProbeConfig(max_control_events=2)
-        runner = ProbeRunner(pipeline, config, self.fake_clock)
+        runner = ProbeRunner(pipeline, config, "transport", self.fake_clock)
 
         result = await runner.run()
         self.assertEqual(result.termination, ProbeTermination.EVENT_LIMIT)
@@ -263,7 +255,7 @@ class TestProbeRunner(unittest.IsolatedAsyncioTestCase):
         events = [self.dummy_event, synth, synth, self.dummy_event, self.dummy_event]
         pipeline = FakePipeline(events)
         config = ProbeConfig(max_control_events=2, include_synthetic=False)
-        runner = ProbeRunner(pipeline, config, self.fake_clock)
+        runner = ProbeRunner(pipeline, config, "transport", self.fake_clock)
 
         result = await runner.run()
         self.assertEqual(result.termination, ProbeTermination.EVENT_LIMIT)
@@ -278,7 +270,7 @@ class TestProbeRunner(unittest.IsolatedAsyncioTestCase):
         msg = "Error opening /home/fieldy/test and /dev/input/event3\nNext line /dev/input/by-id/usb-xxx with serial AABBCCDDEEFF0011"
         pipeline.error_to_raise = ObservationInputError(msg)
         config = ProbeConfig()
-        runner = ProbeRunner(pipeline, config, self.fake_clock)
+        runner = ProbeRunner(pipeline, config, "transport", self.fake_clock)
 
         result = await runner.run()
         self.assertEqual(result.termination, ProbeTermination.OBSERVATION_ERROR)
@@ -292,7 +284,7 @@ class TestProbeRunner(unittest.IsolatedAsyncioTestCase):
         pipeline = FakePipeline([])
         pipeline.error_to_raise = ValueError("Programming error")
         config = ProbeConfig()
-        runner = ProbeRunner(pipeline, config, self.fake_clock)
+        runner = ProbeRunner(pipeline, config, "transport", self.fake_clock)
 
         with self.assertRaises(ValueError):
             await runner.run()
@@ -321,7 +313,7 @@ class TestProbeRunner(unittest.IsolatedAsyncioTestCase):
 
         pipeline = ObservationPipeline(ErrorSelector(), FakeInputFactory())
         config = ProbeConfig(timeout_seconds=0.1)
-        runner = ProbeRunner(pipeline, config, self.fake_clock)
+        runner = ProbeRunner(pipeline, config, "transport", self.fake_clock)
 
         # 2. Execute path that triggered `_pipeline.diagnostics` (any run() does it)
         # We trigger it via a discovery error so it finishes quickly

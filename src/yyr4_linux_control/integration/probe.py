@@ -14,6 +14,10 @@ from yyr4_linux_control.observation.errors import ObservationError
 from yyr4_linux_control.integration.errors import IntegrationConfigurationError, IntegrationSafetyError
 import re
 
+class ProbeProfileMode(str, Enum):
+    TRANSPORT = "transport"
+    DAILY_EVKEY_POSITIVE_CONTROL = "daily-evkey-positive-control"
+
 def _redact_error_message(msg: str) -> str:
     """Redact sensitive paths, serials, and control characters from error messages."""
     if not isinstance(msg, str):
@@ -40,6 +44,7 @@ class ProbeAuthorization:
     """Explicit authorization to run a real device probe."""
     acknowledge_read_only_device_access: bool
     acknowledge_current_profile_is_transport_profile: bool
+    acknowledge_daily_profile_positive_control: bool
     acknowledge_no_actions_will_run: bool
 
 
@@ -47,8 +52,12 @@ def validate_probe_authorization(auth: ProbeAuthorization) -> None:
     """Validates that all authorizations have been explicitly granted."""
     if not auth.acknowledge_read_only_device_access:
         raise IntegrationSafetyError("Missing acknowledgment for read-only device access")
-    if not auth.acknowledge_current_profile_is_transport_profile:
-        raise IntegrationSafetyError("Missing acknowledgment that transport profile is active")
+    
+    if auth.acknowledge_current_profile_is_transport_profile and auth.acknowledge_daily_profile_positive_control:
+        raise IntegrationSafetyError("Cannot acknowledge both transport profile and daily profile positive control")
+    if not auth.acknowledge_current_profile_is_transport_profile and not auth.acknowledge_daily_profile_positive_control:
+        raise IntegrationSafetyError("Must acknowledge exactly one profile mode (transport or daily positive control)")
+        
     if not auth.acknowledge_no_actions_will_run:
         raise IntegrationSafetyError("Missing acknowledgment that no actions will run")
 
@@ -105,6 +114,7 @@ class ProbeEvent:
 class ProbeResult:
     """Result of a probe run."""
     termination: ProbeTermination
+    profile_mode: str
     events: Tuple[ProbeEvent, ...]
     elapsed_seconds: float
     diagnostics: ObservationDiagnostics
@@ -119,11 +129,13 @@ class ProbeRunner:
         self,
         pipeline: ObservationPipeline,
         config: ProbeConfig,
+        profile_mode: str,
         monotonic_clock: Any,  # e.g., time.monotonic
         sleeper: Any = asyncio.sleep  # unused directly, but can be for timeouts
     ) -> None:
         self._pipeline = pipeline
         self._config = config
+        self._profile_mode = profile_mode
         self._clock = monotonic_clock
         self._sleeper = sleeper
 
@@ -179,6 +191,7 @@ class ProbeRunner:
         
         return ProbeResult(
             termination=termination,
+            profile_mode=self._profile_mode,
             events=tuple(events),
             elapsed_seconds=elapsed,
             diagnostics=self._pipeline.snapshot_diagnostics(),

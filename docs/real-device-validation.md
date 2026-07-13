@@ -17,11 +17,18 @@ Milestone 1.3A prepares the production composition and a gated read-only validat
 - Devices are discovered exactly once, and the pipeline is locked to that single identity (no double discovery).
 
 ## Explicit Authorization
-Real device probing demands explicit user acknowledgement through three mandatory parameters:
+Real device probing demands explicit user acknowledgement through mandatory parameters:
 1. `--acknowledge-read-only-device-access`
-2. `--acknowledge-transport-profile-active`
-3. `--acknowledge-no-actions`
-All three authorizations are absolutely required before proceeding.
+2. `--acknowledge-no-actions`
+And exactly ONE profile confirmation:
+3a. `--acknowledge-transport-profile-active`
+3b. `--acknowledge-daily-profile-positive-control`
+All required authorizations are absolutely required before proceeding.
+
+## Daily Profile EV_KEY Positive Control
+A previous Transport Profile probe run resulted in 0 observed raw events. However, the `raw_events_seen` counter in `ObservationPipeline` only increments for `EV_KEY` events because the underlying `EvdevInputAdapter` filters out non-key events (like `EV_REL` or `EV_SYN`). Therefore, the zero-event result cannot reliably prove that the Transport Profile uses a different communication layer entirely. There is currently no evidence requiring a shift to `hidraw`.
+
+To validate the `evdev` event chain correctly, the CLI now includes a `Daily Profile EV_KEY positive-control` mode (`--acknowledge-daily-profile-positive-control`). This mode specifically tests the formal `evdev` EV_KEY read path without enforcing the Transport mapping. A repaired, real Daily positive control run is pending.
 
 ## Probe Constraints
 The probe is explicitly bounded by:
