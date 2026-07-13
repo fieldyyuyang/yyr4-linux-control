@@ -26,9 +26,11 @@ class FakePipeline:
         self.events_to_yield = events_to_yield
         self.sleep_time = sleep_time
         self.closed = False
-        self.diagnostics = "fake_diagnostics"
         self.error_to_raise = None
         self.cancel_to_raise = False
+
+    def snapshot_diagnostics(self):
+        return "fake_diagnostics"
 
     async def observe(self):
         if self.cancel_to_raise:
@@ -45,7 +47,7 @@ class FakePipeline:
 
 
 class TestProbeAuthorization(unittest.TestCase):
-    
+
     def test_authorization_all_true(self):
         auth = ProbeAuthorization(True, True, True)
         validate_probe_authorization(auth)  # Should not raise
@@ -70,7 +72,7 @@ class TestProbeAuthorization(unittest.TestCase):
 
 
 class TestProbeConfig(unittest.TestCase):
-    
+
     def test_default_valid(self):
         c = ProbeConfig()
         self.assertEqual(c.max_control_events, 32)
@@ -110,13 +112,13 @@ class TestProbeConfig(unittest.TestCase):
 
 
 class TestProbeRunner(unittest.IsolatedAsyncioTestCase):
-    
+
     def setUp(self):
         self.clock_val = 0.0
         def fake_clock():
             return self.clock_val
         self.fake_clock = fake_clock
-        
+
         self.dummy_event = ControlEvent(
             source_id="test",
             timestamp_ns=1000,
@@ -131,10 +133,10 @@ class TestProbeRunner(unittest.IsolatedAsyncioTestCase):
         pipeline = FakePipeline([self.dummy_event])
         config = ProbeConfig(max_control_events=10)
         runner = ProbeRunner(pipeline, config, self.fake_clock)
-        
+
         self.clock_val = 1.0
         result = await runner.run()
-        
+
         self.assertEqual(result.termination, ProbeTermination.NORMAL_EOF)
         self.assertEqual(len(result.events), 1)
         self.assertEqual(result.events[0].sequence, 1)
@@ -144,9 +146,9 @@ class TestProbeRunner(unittest.IsolatedAsyncioTestCase):
         pipeline = FakePipeline([self.dummy_event, self.dummy_event, self.dummy_event])
         config = ProbeConfig(max_control_events=2)
         runner = ProbeRunner(pipeline, config, self.fake_clock)
-        
+
         result = await runner.run()
-        
+
         self.assertEqual(result.termination, ProbeTermination.EVENT_LIMIT)
         self.assertEqual(len(result.events), 2)
         self.assertTrue(pipeline.closed)
@@ -155,9 +157,9 @@ class TestProbeRunner(unittest.IsolatedAsyncioTestCase):
         pipeline = FakePipeline([self.dummy_event], sleep_time=0.2)
         config = ProbeConfig(timeout_seconds=0.05)
         runner = ProbeRunner(pipeline, config, self.fake_clock)
-        
+
         result = await runner.run()
-        
+
         self.assertEqual(result.termination, ProbeTermination.TIMEOUT)
         self.assertEqual(len(result.events), 0)
         self.assertTrue(pipeline.closed)
@@ -167,9 +169,9 @@ class TestProbeRunner(unittest.IsolatedAsyncioTestCase):
         pipeline.error_to_raise = ObservationInputError("Failed at /home/user/path")
         config = ProbeConfig()
         runner = ProbeRunner(pipeline, config, self.fake_clock)
-        
+
         result = await runner.run()
-        
+
         self.assertEqual(result.termination, ProbeTermination.OBSERVATION_ERROR)
         self.assertEqual(result.error_type, "ObservationInputError")
         self.assertEqual(result.error_message, "Failed at <redacted>/path")
@@ -180,10 +182,10 @@ class TestProbeRunner(unittest.IsolatedAsyncioTestCase):
         pipeline.cancel_to_raise = True
         config = ProbeConfig()
         runner = ProbeRunner(pipeline, config, self.fake_clock)
-        
+
         with self.assertRaises(asyncio.CancelledError):
             await runner.run()
-            
+
         self.assertTrue(pipeline.closed)
 
     async def test_filter_synthetic(self):
@@ -197,14 +199,14 @@ class TestProbeRunner(unittest.IsolatedAsyncioTestCase):
             reason="reset"
         )
         pipeline = FakePipeline([self.dummy_event, synth_event])
-        
+
         config = ProbeConfig(include_synthetic=False)
         runner = ProbeRunner(pipeline, config, self.fake_clock)
         result = await runner.run()
-        
+
         self.assertEqual(len(result.events), 1)
         self.assertFalse(result.events[0].synthetic)
-        
+
         config2 = ProbeConfig(include_synthetic=True)
         runner2 = ProbeRunner(FakePipeline([self.dummy_event, synth_event]), config2, self.fake_clock)
         result2 = await runner2.run()
@@ -212,12 +214,12 @@ class TestProbeRunner(unittest.IsolatedAsyncioTestCase):
 
     async def test_total_timeout_is_not_per_event(self):
         # 3 events, each takes 0.03 seconds. Total = 0.09s
-        # Config timeout is 0.07s. 
+        # Config timeout is 0.07s.
         # So it should timeout during the 3rd event, proving it's a total timeout.
         pipeline = FakePipeline([self.dummy_event, self.dummy_event, self.dummy_event], sleep_time=0.03)
         config = ProbeConfig(timeout_seconds=0.07)
         runner = ProbeRunner(pipeline, config, self.fake_clock)
-        
+
         result = await runner.run()
         self.assertEqual(result.termination, ProbeTermination.TIMEOUT)
         self.assertEqual(len(result.events), 2)
@@ -238,7 +240,8 @@ class TestProbeRunner(unittest.IsolatedAsyncioTestCase):
         class WrapperPipeline:
             def __init__(self):
                 self.closed = False
-                self.diagnostics = "fake"
+            def snapshot_diagnostics(self):
+                return "fake"
             def observe(self):
                 return generator()
             async def close(self):
@@ -247,7 +250,7 @@ class TestProbeRunner(unittest.IsolatedAsyncioTestCase):
         pipeline = WrapperPipeline()
         config = ProbeConfig(max_control_events=2)
         runner = ProbeRunner(pipeline, config, self.fake_clock)
-        
+
         result = await runner.run()
         self.assertEqual(result.termination, ProbeTermination.EVENT_LIMIT)
         self.assertEqual(len(result.events), 2)
@@ -261,7 +264,7 @@ class TestProbeRunner(unittest.IsolatedAsyncioTestCase):
         pipeline = FakePipeline(events)
         config = ProbeConfig(max_control_events=2, include_synthetic=False)
         runner = ProbeRunner(pipeline, config, self.fake_clock)
-        
+
         result = await runner.run()
         self.assertEqual(result.termination, ProbeTermination.EVENT_LIMIT)
         # Should contain the two normal events
@@ -276,7 +279,7 @@ class TestProbeRunner(unittest.IsolatedAsyncioTestCase):
         pipeline.error_to_raise = ObservationInputError(msg)
         config = ProbeConfig()
         runner = ProbeRunner(pipeline, config, self.fake_clock)
-        
+
         result = await runner.run()
         self.assertEqual(result.termination, ProbeTermination.OBSERVATION_ERROR)
         self.assertNotIn("/home/fieldy", result.error_message)
@@ -290,7 +293,42 @@ class TestProbeRunner(unittest.IsolatedAsyncioTestCase):
         pipeline.error_to_raise = ValueError("Programming error")
         config = ProbeConfig()
         runner = ProbeRunner(pipeline, config, self.fake_clock)
-        
+
         with self.assertRaises(ValueError):
             await runner.run()
         self.assertTrue(pipeline.closed)
+
+    async def test_formal_event_probe_attribute_error_regression(self):
+        # FORMAL EVENT PROBE AttributeError regression
+        # 1. Use real ObservationPipeline with fake dependencies
+        from yyr4_linux_control.observation.pipeline import ObservationPipeline
+        from yyr4_linux_control.observation.interfaces import DeviceSelector, RawInputStreamFactory
+        from yyr4_linux_control.device.discovery import YYR4Identity
+
+        class FakeSelector(DeviceSelector):
+            def select_single(self) -> YYR4Identity:
+                # Need an identity but it won't actually be used successfully if we mock stream
+                raise Exception("Should not reach discovery")
+
+        class ErrorSelector(DeviceSelector):
+            def select_single(self) -> YYR4Identity:
+                from yyr4_linux_control.device.errors import DeviceDiscoveryError
+                raise DeviceDiscoveryError("Fake discovery error")
+
+        class FakeInputFactory(RawInputStreamFactory):
+            def create(self, identity: YYR4Identity):
+                pass
+
+        pipeline = ObservationPipeline(ErrorSelector(), FakeInputFactory())
+        config = ProbeConfig(timeout_seconds=0.1)
+        runner = ProbeRunner(pipeline, config, self.fake_clock)
+
+        # 2. Execute path that triggered `_pipeline.diagnostics` (any run() does it)
+        # We trigger it via a discovery error so it finishes quickly
+        result = await runner.run()
+
+        # 3. Prove it no longer raises AttributeError and returns a formal ProbeResult
+        self.assertEqual(result.termination, ProbeTermination.OBSERVATION_ERROR)
+        self.assertEqual(result.error_type, "ObservationDiscoveryError")
+        self.assertIsNotNone(result.diagnostics)
+        self.assertEqual(result.diagnostics.discovery_errors, 1)

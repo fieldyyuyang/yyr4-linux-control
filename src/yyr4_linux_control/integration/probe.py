@@ -181,7 +181,7 @@ class ProbeRunner:
             termination=termination,
             events=tuple(events),
             elapsed_seconds=elapsed,
-            diagnostics=self._pipeline.diagnostics,
+            diagnostics=self._pipeline.snapshot_diagnostics(),
             error_type=error_type,
             error_message=error_message,
         )

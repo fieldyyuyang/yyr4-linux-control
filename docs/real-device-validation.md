@@ -54,6 +54,10 @@ Currently, users *do not* need to switch to the Transport Profile. Implementatio
 - The tool only discovers, selects the unique Identity, and checks selected-node `R_OK` read permissions without actually opening the nodes or reading events.
 - Real execution must be explicitly designated via `--real`.
 - Results are written to local, Git-ignored JSON files, and are heavily desensitized.
-- The repaired Identity and real selected-node permissions have not yet been validated.
-- We have not run the real event Probe.
-- Identity and permissions can be verified without requiring the Transport Profile.
+
+### M1.3B-2P Transport Profile Event Probe Contract Fix
+- The first formal Transport Profile event probe was executed but failed internally (`AttributeError` from `ProbeRunner` incorrectly accessing `pipeline.diagnostics` instead of `pipeline.snapshot_diagnostics()`).
+- The Identity and Permission validation steps continue to be verified successfully.
+- No valid Transport event validation conclusions could be drawn due to the internal crash.
+- This milestone corrected the internal public interface contract, ensuring the probe consumes the formal snapshot method correctly, and added a regression test for this specific crash path.
+- The repaired formal event probe is now pending a single real execution.

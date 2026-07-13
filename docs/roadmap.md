@@ -17,7 +17,7 @@ This roadmap defines the sequential dependencies for the project. Moving to the 
 * **Milestone 1.2 (COMPLETED)**: Read-only control observation pipeline (simulated tests complete, read-only, fail-closed model).
 * **Milestone 1.3B-2A**: implementation and simulated tests complete; controlled discovery re-validation pending.
 * **Milestone 1.3B-2I**: implementation and simulated verification complete; single-run identity and selected-node permission re-validation pending.
-* **Milestone 1.3B-2K**: maintained Identity/permission validation tool implementation and simulated verification complete; single real execution pending.
+* **Milestone 1.3B-2P**: formal event Probe diagnostics contract fixed and regression-tested; single bounded real rerun pending.
 * **Goal**: A foundational daemon reading `evdev`.
 * **Deliverables**: Python daemon, precise `udev` rules.
 * **Validation Gate**: Reads inputs exclusively from the YYR4.
