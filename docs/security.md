@@ -42,8 +42,8 @@
 To safely acquire the device without risk of opening the users main keyboard, we strictly match the parent USB topology, vendor, product, and ensure exactly one keyboard and one mouse interface are present on interface 02. The discovery logic fails closed on any ambiguity. When normalizing USB descriptors, we prioritize `sysfs` descriptors to avoid `udev` space-to-underscore normalization issues, and use strict matching when using `udev` property fallbacks.
 
 ## Explicit Hardware Probe Authorizations (Milestone 1.3A+)
-Before any real hardware validation tool runs, users must explicitly acknowledge three factors: that the tool reads raw device access, that the transport profile is active, and that no system actions will run. Automatic authorizations are strictly forbidden. Note: As of M1.3B-2A, we have only performed a controlled `pyudev` metadata read; no device node has been opened, and no input events have been read yet.
+Before any real hardware validation tool runs, users must explicitly acknowledge its execution. For the M1.3B-2K Identity and Permission Validation Probe, users must explicitly supply `--real`. Automatic authorizations are strictly forbidden. The probe only reads properties and checks `os.access`; no device node is opened, grabbed, or read from.
 
 ### Discovery and Permission Separation
 * Device nodes are evaluated for filesystem `os.access` readability only if they precisely match the composite YYR4 identity. Unrelated device nodes are never tested for read access.
-* The separation ensures that missing read permissions map clearly to `IntegrationPermissionError` rather than misleadingly indicating device absence (`DeviceNotFoundError`).
+* The separation ensures that missing read permissions map clearly to `IntegrationPermissionError` (or `PERMISSION_BLOCKED` via the probe tool) rather than misleadingly indicating device absence (`DeviceNotFoundError`).

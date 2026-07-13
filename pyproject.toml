@@ -11,6 +11,9 @@ requires-python = ">=3.11"
 license = {text = "MIT License"}
 dependencies = []
 
+[project.scripts]
+yyr4-identity-permission-probe = "yyr4_linux_control.tools.identity_permission_probe:main"
+
 [project.optional-dependencies]
 linux-input = [
     "evdev",

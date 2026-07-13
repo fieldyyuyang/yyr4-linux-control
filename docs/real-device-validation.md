@@ -48,3 +48,12 @@ Currently, users *do not* need to switch to the Transport Profile. Implementatio
 - This has been corrected to use the dedicated `ID_INPUT_KEYBOARD` and `ID_INPUT_MOUSE` properties as authoritative sources.
 - No new real discovery, node reading, or event probe has been executed yet for the updated logic.
 - There is currently no evidence indicating that the Transport Profile affects role metadata. We do not need to switch Transport Profile yet.
+
+### M1.3B-2K Identity and Permission Validation Probe
+- The temporary diagnostic script phase has ended. Identity/permission validation is now productized as a maintained tool (`yyr4_linux_control.tools.identity_permission_probe`).
+- The tool only discovers, selects the unique Identity, and checks selected-node `R_OK` read permissions without actually opening the nodes or reading events.
+- Real execution must be explicitly designated via `--real`.
+- Results are written to local, Git-ignored JSON files, and are heavily desensitized.
+- The repaired Identity and real selected-node permissions have not yet been validated.
+- We have not run the real event Probe.
+- Identity and permissions can be verified without requiring the Transport Profile.

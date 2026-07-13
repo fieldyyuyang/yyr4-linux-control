@@ -55,3 +55,9 @@ graph TD
 ### M1.3B-2I Role Classification Architecture
 * Role classification strictly uses authoritative udev properties (`ID_INPUT_KEYBOARD` and `ID_INPUT_MOUSE`).
 * The classification is fail-closed, rejecting dual-role nodes as ambiguous and keeping zero-role nodes as missing, ignoring arbitrary device `NAME` attributes that are subject to environmental variation.
+
+### M1.3B-2K Identity and Permission Validation Probe
+* The temporary diagnostic script phase has ended. Identity/permission validation is now productized as a maintained tool within the `yyr4_linux_control.tools` namespace.
+* The tool operates independently, enumerating the real device context only once, selecting the formal Identity, and applying read access permission checks without actually opening the nodes, grabbing the devices, or reading events.
+* Real execution requires explicit `--real` authorization.
+* Sensitive device attributes (paths, serials, full identifiers) are stripped from structural validation reports to preserve user privacy.
