@@ -1,4 +1,0 @@
-# YYR4 Programmable Keypad
-# Grants access to the active local user via logind/uaccess.
-# Vendor ID 239a, Product ID 80f4 (YOUYOU TEC.)
-ACTION=="add|change", SUBSYSTEM=="input", ATTRS{idVendor}=="239a", ATTRS{idProduct}=="80f4", TAG+="uaccess"

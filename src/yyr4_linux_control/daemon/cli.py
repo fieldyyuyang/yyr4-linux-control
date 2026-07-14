@@ -87,20 +87,15 @@ async def _main_async(args) -> int:
         logger.critical("yyr4d must not be run as root.")
         return 1
 
-    config_path_str = args.config
-    if not config_path_str:
-        default_config = Path.home() / ".config" / "yyr4" / "config.toml"
-        if default_config.exists():
-            config_path_str = str(default_config)
-        else:
-            logger.critical(f"Missing required --config argument, and default {default_config} not found.")
-            return 1
+    if not args.config:
+        logger.critical("Missing required --config argument.")
+        return 1
 
     mode = ExecutionMode[args.execution_mode]
 
     try:
         settings = RuntimeSettings(
-            config_path=config_path_str,
+            config_path=args.config,
             execution_mode=mode,
             queue_capacity=args.queue_capacity,
             reconnect_initial_seconds=args.reconnect_initial,
@@ -167,7 +162,7 @@ async def _main_async(args) -> int:
 def main():
     parser = argparse.ArgumentParser(description="YYR4 Linux Control Daemon Runtime")
     parser.add_argument("--version", action="version", version="0.1.0")
-    parser.add_argument("--config", type=str, help="Path to TOML configuration file (defaults to ~/.config/yyr4/config.toml)")
+    parser.add_argument("--config", type=str, help="Path to TOML configuration file")
     parser.add_argument("--execution-mode", type=str, choices=["DRY_RUN", "EXECUTE"], default="EXECUTE", help="Action execution mode")
     parser.add_argument("--control-socket", type=str, help="Path to unix domain socket for management CLI")
     parser.add_argument("--queue-capacity", type=int, default=128, help="Maximum queued actions")

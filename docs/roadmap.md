@@ -127,17 +127,17 @@ NEXT
 - schema迁移。
 
 ## Milestone 4 — Linux integration and deployment
-当前状态：
-COMPLETE
-
-包括：
-- 精确udev规则（`TAG+="uaccess"`）；
-- 专用组或logind ACL（通过`uaccess`实现）；
-- systemd unit（User Service）；
-- 安装与卸载（Makefile）；
-- 配置目录（默认加载 `~/.config/yyr4/config.toml`）；
-- 日志管理（通过 systemd journal）；
+此时才实现：
+- 精确udev规则；
+- 专用组或logind ACL；
+- systemd unit；
+- 安装与卸载；
+- 配置目录；
+- 日志管理；
 - 打包。
+
+明确：
+Targeted Udev Rules属于M4，不是当前NEXT。
 
 ## Milestone 5 — Optional graphical configurator
 包括：
