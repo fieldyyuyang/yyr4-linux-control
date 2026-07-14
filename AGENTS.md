@@ -4,14 +4,17 @@ This file establishes strict behavioral constraints for AI Agents working on the
 
 ## Core Constraints
 1. **Documentation First**: Agents MUST plan and document changes before implementation.
-2. **Current Phase**: We are currently in **Milestone 2**.
-   * **Next Target**: Milestone 2.3 — Long-running daemon
+2. **Current Phase**: We are currently in **Milestone 3**.
+   * **Next Target**: Milestone 3.1 — Layered Configuration Domain
    * DO NOT start the udev rules generator yet.
    * DO NOT request repetitive hardware tests.
    * DO NOT create `/tmp` diagnostic script version cycles.
    * Git commits are ONLY allowed at complete milestone boundaries.
    * ALL user operations MUST use official control names (A1-A12, AL/AP/AR, etc.).
    * Any direction change MUST first update Project Charter and Roadmap and be confirmed by the user.
+   * GitLab主仓库远程名为main；
+   * GitHub镜像远程名为github；
+   * 不得默认使用origin。
 3. **Reference Docs**: Before making decisions, you MUST read:
    * [docs/project-charter.md](docs/project-charter.md)
    * [docs/development-governance.md](docs/development-governance.md)

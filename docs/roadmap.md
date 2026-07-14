@@ -77,7 +77,7 @@ COMPLETE
 
 ### M2.3 Long-running daemon
 当前状态：
-NEXT
+COMPLETE
 
 范围：
 - yyr4d；
@@ -91,7 +91,10 @@ NEXT
 - 非root运行。
 
 ### M2.4 Management CLI
-建议命令：
+当前状态：
+COMPLETE
+
+具备命令：
 - yyr4ctl validate
 - yyr4ctl status
 - yyr4ctl list-controls
@@ -99,7 +102,17 @@ NEXT
 - yyr4ctl reload
 - yyr4ctl dry-run A1
 
-## Milestone 3 — Layers and profiles
+本地管理接口使用 Unix Domain Socket 验证 `SO_PEERCRED`，无 HTTP/TCP 暴露。
+
+## Milestone 3 — Context-Aware Runtime Foundation
+
+### M3.1 Layered Configuration Domain
+当前状态：
+NEXT
+
+systemd和udev仍属于M4。
+
+### M3.2 Layers and profiles
 包括：
 - 通用层；
 - 第一层至第八层；
