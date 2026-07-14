@@ -103,7 +103,7 @@ When using `CommandAction` or `HotkeyAction` that invoke `xdotool`, the process 
 The `~/.config/yyr4` directory and its contents should be kept private (e.g. `0700` directory, `0600` files) since configurations may execute arbitrary shell commands.
 
 ## 23. CommandAction Risks
-The `--execute` flag enables real system actions. Any `CommandAction` in your TOML will execute exactly as defined. Do not download and run unverified profiles.
+The daemon runs in `EXECUTE` mode by default, which enables real system actions. Any `CommandAction` in your TOML will execute exactly as defined. Do not download and run unverified profiles.
 
 ## 24. Rollback Steps
 If an update fails:

@@ -39,7 +39,6 @@ class TestLinuxIntegrationAssets(unittest.TestCase):
         self.assertIn('Type=simple', content)
         self.assertIn('--config', content)
         self.assertIn('--control-socket', content)
-        self.assertIn('--execute', content)
         self.assertIn('yyr4ctl validate', content)
         self.assertIn('RuntimeDirectory=yyr4', content)
         self.assertIn('RuntimeDirectoryMode=0700', content)
