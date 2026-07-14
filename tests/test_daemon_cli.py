@@ -106,9 +106,10 @@ value = "cli"
 
     @patch('sys.stderr', new_callable=io.StringIO)
     def test_missing_config_returns_argument_error(self, mock_stderr):
-        with self.assertRaises(SystemExit) as cm:
-            run_cli([])
-        self.assertEqual(cm.exception.code, 1)
+        with patch.dict(os.environ, {'HOME': '/tmp/nonexistent_yyr4_test_dir'}):
+            with self.assertRaises(SystemExit) as cm:
+                run_cli([])
+            self.assertEqual(cm.exception.code, 1)
 
     @patch('yyr4_linux_control.daemon.cli.DaemonRuntime')
     @patch('yyr4_linux_control.daemon.cli.ManagementServer')
