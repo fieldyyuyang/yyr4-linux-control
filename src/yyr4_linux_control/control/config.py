@@ -47,7 +47,7 @@ def _parse_schema_v1(data: Dict[str, Any]) -> LayeredControlConfig:
     if not isinstance(controls_data, dict):
         raise ConfigValidationError("controls must be a table", path="controls")
         
-    controls = _parse_controls(controls_data, "controls")
+    controls = _parse_controls(controls_data, "controls", schema_version=1)
     
     general_layer = LayerConfig(layer_id=LayerId.GENERAL, controls=controls)
     default_profile = ProfileConfig(profile_id=ProfileId("default"), layers={LayerId.GENERAL: general_layer})
@@ -125,7 +125,7 @@ def _parse_schema_v2(data: Dict[str, Any]) -> LayeredControlConfig:
             if not isinstance(controls_data, dict):
                 raise ConfigValidationError("controls must be a table", path=f"{layer_path}.controls")
                 
-            controls = _parse_controls(controls_data, f"{layer_path}.controls")
+            controls = _parse_controls(controls_data, f"{layer_path}.controls", schema_version=2)
             layers[layer_id] = LayerConfig(layer_id=layer_id, controls=controls)
             
         if LayerId.GENERAL not in layers:
@@ -143,7 +143,7 @@ def _parse_schema_v2(data: Dict[str, Any]) -> LayeredControlConfig:
         profiles=profiles
     )
 
-def _parse_controls(controls: Dict[str, Any], path_prefix: str) -> Dict[OfficialControl, Action]:
+def _parse_controls(controls: Dict[str, Any], path_prefix: str, schema_version: int) -> Dict[OfficialControl, Action]:
     result: Dict[OfficialControl, Action] = {}
     for ctrl_name, ctrl_conf in controls.items():
         path = f"{path_prefix}.{ctrl_name}"
@@ -157,7 +157,7 @@ def _parse_controls(controls: Dict[str, Any], path_prefix: str) -> Dict[Official
         if action_def is None:
             continue
 
-        action = _parse_action(action_def, path=f"{path}.action")
+        action = _parse_action(action_def, path=f"{path}.action", schema_version=schema_version)
         result[OfficialControl(ctrl_name)] = action
         
         # Check for unknown fields in control conf
@@ -167,7 +167,7 @@ def _parse_controls(controls: Dict[str, Any], path_prefix: str) -> Dict[Official
 
     return result
 
-def _parse_action(data: Any, path: str) -> Action:
+def _parse_action(data: Any, path: str, schema_version: int) -> Action:
     if not isinstance(data, dict):
         raise ConfigValidationError("action must be a table", path=path)
 
@@ -223,7 +223,7 @@ def _parse_action(data: Any, path: str) -> Action:
             raise InvalidActionError("macro action requires 'steps' as a list of actions", path=path)
         steps = []
         for i, step_data in enumerate(steps_data):
-            steps.append(_parse_action(step_data, path=f"{path}.steps[{i}]"))
+            steps.append(_parse_action(step_data, path=f"{path}.steps[{i}]", schema_version=schema_version))
         return MacroAction(tuple(steps))
 
     elif action_type == "noop":
@@ -236,18 +236,26 @@ def _parse_action(data: Any, path: str) -> Action:
         return DebugLogAction(msg)
 
     elif action_type == "set_layer":
+        if schema_version < 2:
+            raise InvalidActionError("set_layer action is only available in schema version 2", path=path)
         layer = data.get("layer")
         if not isinstance(layer, str):
             raise InvalidActionError("set_layer action requires 'layer' as a string", path=path)
         return SetLayerAction(layer)
 
     elif action_type == "next_layer":
+        if schema_version < 2:
+            raise InvalidActionError("next_layer action is only available in schema version 2", path=path)
         return NextLayerAction()
 
     elif action_type == "previous_layer":
+        if schema_version < 2:
+            raise InvalidActionError("previous_layer action is only available in schema version 2", path=path)
         return PreviousLayerAction()
 
     elif action_type == "set_profile":
+        if schema_version < 2:
+            raise InvalidActionError("set_profile action is only available in schema version 2", path=path)
         profile = data.get("profile")
         if not isinstance(profile, str):
             raise InvalidActionError("set_profile action requires 'profile' as a string", path=path)
