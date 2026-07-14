@@ -146,7 +146,8 @@ value = "hello"
         
         snap = runtime.snapshot()
         self.assertEqual(snap.unmapped_events, 1)
-        self.assertEqual(snap.plans_enqueued, 0)
+        self.assertEqual(snap.plans_enqueued, 1)
+        self.assertEqual(snap.plans_executed, 0)
 
     async def test_explicit_noop_enters_execution_queue(self):
         with open(self.config_path, "w") as f:
@@ -254,4 +255,5 @@ value = "new"
         self.assertEqual(snap.config_revision, 2)
         self.assertEqual(snap.config_reload_successes, 1)
         self.assertEqual(snap.unmapped_events, 1) # the first A2 was unmapped
-        self.assertEqual(snap.plans_enqueued, 2)  # A1 (old config), A2 (new config)
+        self.assertEqual(snap.plans_enqueued, 3)  # A1, A2, A2
+        self.assertEqual(snap.plans_executed, 2)  # A1, A2(after reload)

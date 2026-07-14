@@ -1,5 +1,5 @@
 import asyncio
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Protocol
 from abc import ABC, abstractmethod
 
 class DesktopInputBackend(ABC):
@@ -40,3 +40,16 @@ class DebugLogBackend(ABC):
     def emit(self, message: str) -> None:
         """Emits a debug log message."""
         pass
+
+class RuntimeControlBackend(Protocol):
+    async def set_layer(self, layer_id: str) -> bool:
+        ...
+
+    async def next_layer(self) -> bool:
+        ...
+
+    async def previous_layer(self) -> bool:
+        ...
+
+    async def set_profile(self, profile_id: str) -> bool:
+        ...

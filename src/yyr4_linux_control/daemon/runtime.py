@@ -8,8 +8,9 @@ from yyr4_linux_control.control.actions import LayeredActionResolver, Resolution
 from yyr4_linux_control.control.errors import ConfigValidationError
 
 from .models import DaemonState, RuntimeSettings, RuntimeSnapshot
+from .context import RuntimeContextManager, ContextChangeSource
 from .interfaces import InputSessionFactory, ActionPlanExecutor, Clock
-from .queue import DropNewestActionQueue
+from .queue import DropNewestEventQueue
 from .errors import FatalRuntimeError, RecoverableSessionError, InvalidStateTransitionError
 
 logger = logging.getLogger("yyr4_linux_control.daemon")
@@ -37,7 +38,13 @@ class DaemonRuntime:
         self._state = DaemonState.CREATED
         self._state_lock = asyncio.Lock()
         
-        self._queue = DropNewestActionQueue(settings.queue_capacity)
+        self._queue = DropNewestEventQueue(settings.queue_capacity)
+        
+        self._context = None  # Instantiated after config load
+        
+        if hasattr(self._action_executor, 'runtime_backend'):
+            self._action_executor.runtime_backend = self
+
         
         # Snapshot counters
         self._started_at = 0.0
@@ -102,6 +109,10 @@ class DaemonRuntime:
             config_reload_failures=self._config_reload_failures,
             last_error_code=self._last_error_code,
             queue_size=self._queue.size,
+            selected_profile=self._context._selected_profile if self._context else "",
+            active_layer=self._context._active_layer if self._context else "",
+            context_revision=self._context._revision if self._context else 0,
+            last_context_change_source=self._context._last_change_source.value if self._context else "",
             queue_capacity=self._settings.queue_capacity,
         )
 
@@ -140,6 +151,12 @@ class DaemonRuntime:
             self._action_resolver = new_resolver
             self._config_revision += 1
             self._config_reload_successes += 1
+            
+            # Reconcile context
+            changed = await self._context.reconcile_after_reload(new_resolver.config)
+            if changed:
+                logger.info("Context reconciled after reload.")
+                
             logger.info(f"Configuration reloaded successfully. Revision: {self._config_revision}")
             if not fut.done():
                 fut.set_result({"success": True, "config_revision": self._config_revision, "reload_successes": self._config_reload_successes})
@@ -155,11 +172,23 @@ class DaemonRuntime:
             while not self._stop_event.is_set():
                 # We use wait_for to periodically check stop_event
                 try:
-                    plan = await asyncio.wait_for(self._queue.dequeue(), timeout=0.5)
+                    event = await asyncio.wait_for(self._queue.dequeue(), timeout=0.5)
                 except asyncio.TimeoutError:
                     continue
                 
                 try:
+                    ctx_snap = await self._context.snapshot()
+                    plan = self._action_resolver.resolve(
+                        event,
+                        ctx_snap.selected_profile,
+                        ctx_snap.active_layer
+                    )
+                    self._plans_resolved += 1
+                    
+                    if plan.resolution_status == ResolutionStatus.UNMAPPED:
+                        self._unmapped_events += 1
+                        continue
+
                     # Execute
                     res = await self._action_executor.execute(plan)
                     self._plans_executed += 1
@@ -238,18 +267,7 @@ class DaemonRuntime:
 
                     self._events_received += 1
                     
-                    plan = self._action_resolver.resolve(
-                        event,
-                        self._action_resolver.config.default_profile,
-                        self._action_resolver.config.initial_layer
-                    )
-                    self._plans_resolved += 1
-                    
-                    if plan.resolution_status == ResolutionStatus.UNMAPPED:
-                        self._unmapped_events += 1
-                        continue
-                    
-                    enqueued = self._queue.enqueue(plan)
+                    enqueued = self._queue.enqueue(event)
                     if enqueued:
                         self._plans_enqueued += 1
 
@@ -296,6 +314,12 @@ class DaemonRuntime:
         # Load initial config
         try:
             self._action_resolver = await self._try_load_config()
+            self._context = RuntimeContextManager(
+                self._action_resolver.config.default_profile, 
+                self._action_resolver.config.initial_layer,
+                self._clock
+            )
+            self._context.set_config(self._action_resolver.config)
             self._config_revision += 1
             logger.info("Initial configuration loaded successfully.")
         except FatalRuntimeError as e:
@@ -393,3 +417,59 @@ class DaemonRuntime:
                 self._state = DaemonState.STOPPED
                 
         logger.info("Daemon stopped.")
+
+    # RuntimeControlBackend interface and Management CLI APIs
+    async def get_runtime_context(self):
+        if not self._context:
+            return None
+        return await self._context.snapshot()
+
+    async def set_active_layer(self, layer_id: str, source: ContextChangeSource) -> bool:
+        changed = await self._context.set_layer(layer_id, source)
+        if changed:
+            logger.info(f"Layer changed to {layer_id}")
+        else:
+            logger.info(f"Context unchanged (already on layer {layer_id})")
+        return changed
+
+    async def next_active_layer(self, source: ContextChangeSource) -> bool:
+        changed = await self._context.next_layer(source)
+        if changed:
+            logger.info(f"Layer changed to next layer ({self._context._active_layer})")
+        return changed
+
+    async def previous_active_layer(self, source: ContextChangeSource) -> bool:
+        changed = await self._context.previous_layer(source)
+        if changed:
+            logger.info(f"Layer changed to previous layer ({self._context._active_layer})")
+        return changed
+
+    async def set_selected_profile(self, profile_id: str, source: ContextChangeSource) -> bool:
+        try:
+            changed = await self._context.set_profile(profile_id, source)
+            if changed:
+                logger.info(f"Profile changed to {profile_id}")
+            else:
+                logger.info(f"Context unchanged (already on profile {profile_id})")
+            return changed
+        except ValueError as e:
+            logger.warning(f"Invalid profile request: {e}")
+            raise
+            
+    # Internal aliases for the engine interface
+    async def set_layer(self, layer_id: str) -> bool:
+        return await self.set_active_layer(layer_id, ContextChangeSource.control_action)
+
+    async def next_layer(self) -> bool:
+        return await self.next_active_layer(ContextChangeSource.control_action)
+
+    async def previous_layer(self) -> bool:
+        return await self.previous_active_layer(ContextChangeSource.control_action)
+
+    async def set_profile(self, profile_id: str) -> bool:
+        try:
+            return await self.set_selected_profile(profile_id, ContextChangeSource.control_action)
+        except ValueError as e:
+            # Swallow for runtime action, it will just fail
+            logger.warning(f"Runtime action rejected: {e}")
+            raise

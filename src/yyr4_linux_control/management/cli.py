@@ -188,6 +188,12 @@ def cmd_show_config(args):
                             steps_sum.append({"type": t, "milliseconds": step.milliseconds})
                         elif t == "NoOpAction":
                             steps_sum.append({"type": t})
+                        elif t == "SetLayerAction":
+                            steps_sum.append({"type": t, "layer": step.layer})
+                        elif t == "SetProfileAction":
+                            steps_sum.append({"type": t, "profile": step.profile})
+                        elif t in ("NextLayerAction", "PreviousLayerAction"):
+                            steps_sum.append({"type": t})
 
                     layer_summary[ctrl_name] = {"action": steps_sum}
                 profile_summary[layer_id.value] = layer_summary
@@ -321,6 +327,10 @@ def cmd_status(args):
         print(f"Execution Mode: {res.get('execution_mode')}")
         print(f"Uptime (s): {res.get('uptime_seconds')}")
         print(f"Config Revision: {res.get('config_revision')}")
+        print(f"Selected Profile: {res.get('selected_profile')}")
+        print(f"Active Layer: {res.get('active_layer')}")
+        print(f"Context Revision: {res.get('context_revision')}")
+        print(f"Context Change Source: {res.get('last_context_change_source')}")
         print(f"Current Session Active: {res.get('current_session_active')}")
         print(f"Sessions Started: {res.get('sessions_started')}")
         print(f"Reconnect Attempts: {res.get('reconnect_attempts')}")
@@ -350,6 +360,33 @@ def cmd_ping(args):
         print(json.dumps(res))
     else:
         print("PONG")
+    sys.exit(EXIT_SUCCESS)
+
+def cmd_context_command(args):
+    cmd_name = args.command
+    params = {}
+    if cmd_name == "set-layer":
+        params["layer"] = args.layer
+    elif cmd_name == "set-profile":
+        params["profile"] = args.profile
+    
+    cmd = "get-context" if cmd_name == "context" else cmd_name
+        
+    res = asyncio.get_event_loop().run_until_complete(_send_command(args, cmd, params))
+    if args.json:
+        print(json.dumps(res))
+    else:
+        if cmd == "get-context":
+            print(f"Profile: {res.get('selected_profile')}")
+            print(f"Layer: {res.get('active_layer')}")
+            print(f"Revision: {res.get('context_revision')}")
+            print(f"Source: {res.get('last_change_source')}")
+        else:
+            print(f"Previous Profile: {res.get('previous_profile')}")
+            print(f"Previous Layer: {res.get('previous_layer')}")
+            print(f"New Profile: {res.get('selected_profile')}")
+            print(f"New Layer: {res.get('active_layer')}")
+            print(f"Changed: {res.get('changed')}")
     sys.exit(EXIT_SUCCESS)
 
 def main():
@@ -387,6 +424,28 @@ def main():
     p_ping.add_argument("--socket", type=str)
     p_ping.add_argument("--json", action="store_true")
 
+    p_ctx = subparsers.add_parser("context")
+    p_ctx.add_argument("--socket", type=str)
+    p_ctx.add_argument("--json", action="store_true")
+
+    p_sl = subparsers.add_parser("set-layer")
+    p_sl.add_argument("layer", type=str)
+    p_sl.add_argument("--socket", type=str)
+    p_sl.add_argument("--json", action="store_true")
+
+    p_nl = subparsers.add_parser("next-layer")
+    p_nl.add_argument("--socket", type=str)
+    p_nl.add_argument("--json", action="store_true")
+
+    p_pl = subparsers.add_parser("previous-layer")
+    p_pl.add_argument("--socket", type=str)
+    p_pl.add_argument("--json", action="store_true")
+
+    p_sp = subparsers.add_parser("set-profile")
+    p_sp.add_argument("profile", type=str)
+    p_sp.add_argument("--socket", type=str)
+    p_sp.add_argument("--json", action="store_true")
+
     args = parser.parse_args()
 
     if args.command == "validate":
@@ -403,3 +462,5 @@ def main():
         cmd_reload(args)
     elif args.command == "ping":
         cmd_ping(args)
+    elif args.command in ("context", "set-layer", "next-layer", "previous-layer", "set-profile"):
+        cmd_context_command(args)

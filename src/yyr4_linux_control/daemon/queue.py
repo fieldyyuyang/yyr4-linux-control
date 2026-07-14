@@ -1,27 +1,27 @@
 import asyncio
 import logging
 
-from yyr4_linux_control.control.actions import ActionPlan
+from yyr4_linux_control.control.models import OfficialControlEvent
 
 logger = logging.getLogger("yyr4_linux_control.daemon")
 
-class DropNewestActionQueue:
-    """A bounded FIFO queue that drops the newest plan if full."""
+class DropNewestEventQueue:
+    """A bounded FIFO queue that drops the newest event if full."""
     def __init__(self, capacity: int):
         self.capacity = capacity
         self._queue = asyncio.Queue()
         self.dropped_count = 0
 
-    def enqueue(self, plan: ActionPlan) -> bool:
+    def enqueue(self, event: OfficialControlEvent) -> bool:
         if self._queue.qsize() >= self.capacity:
             self.dropped_count += 1
-            logger.warning(f"Queue full (capacity {self.capacity}). Dropping new action plan for control {plan.control.value}.")
+            logger.warning(f"Queue full (capacity {self.capacity}). Dropping new event for control {event.control.value}.")
             return False
         
-        self._queue.put_nowait(plan)
+        self._queue.put_nowait(event)
         return True
 
-    async def dequeue(self) -> ActionPlan:
+    async def dequeue(self) -> OfficialControlEvent:
         return await self._queue.get()
 
     def task_done(self) -> None:
@@ -31,7 +31,7 @@ class DropNewestActionQueue:
     def size(self) -> int:
         return self._queue.qsize()
 
-    def get_all_nowait(self) -> list[ActionPlan]:
+    def get_all_nowait(self) -> list[OfficialControlEvent]:
         items = []
         while not self._queue.empty():
             try:

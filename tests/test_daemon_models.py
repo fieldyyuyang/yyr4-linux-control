@@ -36,8 +36,12 @@ class TestDaemonModels(unittest.TestCase):
             config_reload_successes=0,
             config_reload_failures=0,
             last_error_code=None,
-            queue_size=0,
-            queue_capacity=10
+            queue_size=5,
+            queue_capacity=10,
+            selected_profile="default",
+            active_layer="base",
+            context_revision=1,
+            last_context_change_source="startup"
         )
 
     def test_snapshot_to_dict(self):
@@ -64,7 +68,8 @@ class TestDaemonModels(unittest.TestCase):
             "plans_resolved", "plans_enqueued", "plans_executed",
             "executions_succeeded", "executions_failed", "unmapped_events",
             "queue_dropped", "discarded_on_shutdown", "config_reload_successes",
-            "config_reload_failures", "last_error_code", "queue_size", "queue_capacity"
+            "config_reload_failures", "last_error_code", "queue_size", "queue_capacity",
+            "selected_profile", "active_layer", "context_revision", "last_context_change_source"
         }
         self.assertEqual(set(d.keys()), expected_keys)
 

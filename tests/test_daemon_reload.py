@@ -138,7 +138,8 @@ class TestDaemonReload(unittest.IsolatedAsyncioTestCase):
         
         snap = runtime.snapshot()
         self.assertEqual(snap.unmapped_events, 1) # from before reload
-        self.assertEqual(snap.plans_enqueued, 1)  # from after reload
+        self.assertEqual(snap.plans_enqueued, 2)  # both A2 events
+        self.assertEqual(snap.plans_executed, 1)  # only after reload
         
         runtime.request_stop()
         await run_task

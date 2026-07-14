@@ -1,12 +1,12 @@
 import asyncio
 import unittest
-from yyr4_linux_control.daemon.queue import DropNewestActionQueue
+from yyr4_linux_control.daemon.queue import DropNewestEventQueue
 from yyr4_linux_control.control.actions import ActionPlan, ResolutionStatus, NoOpAction
 from yyr4_linux_control.control.models import OfficialControl
 
 class TestDaemonQueue(unittest.IsolatedAsyncioTestCase):
     def test_queue_preserves_fifo_order(self):
-        q = DropNewestActionQueue(capacity=3)
+        q = DropNewestEventQueue(capacity=3)
         plan1 = ActionPlan(OfficialControl.A1, ResolutionStatus.CONFIGURED, (NoOpAction(),))
         plan2 = ActionPlan(OfficialControl.A2, ResolutionStatus.CONFIGURED, (NoOpAction(),))
         
@@ -19,7 +19,7 @@ class TestDaemonQueue(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(items[1].control, OfficialControl.A2)
 
     def test_queue_drops_newest_when_full(self):
-        q = DropNewestActionQueue(capacity=2)
+        q = DropNewestEventQueue(capacity=2)
         plan1 = ActionPlan(OfficialControl.A1, ResolutionStatus.CONFIGURED, (NoOpAction(),))
         plan2 = ActionPlan(OfficialControl.A2, ResolutionStatus.CONFIGURED, (NoOpAction(),))
         plan3 = ActionPlan(OfficialControl.A3, ResolutionStatus.CONFIGURED, (NoOpAction(),))
@@ -34,7 +34,7 @@ class TestDaemonQueue(unittest.IsolatedAsyncioTestCase):
     def test_queue_drop_increments_runtime_counter(self):
         # The runtime drops it, the queue counts it, but we test the queue counter here.
         # The runtime counter test will be done in test_daemon_runtime.py
-        q = DropNewestActionQueue(capacity=1)
+        q = DropNewestEventQueue(capacity=1)
         plan1 = ActionPlan(OfficialControl.A1, ResolutionStatus.CONFIGURED, (NoOpAction(),))
         plan2 = ActionPlan(OfficialControl.A2, ResolutionStatus.CONFIGURED, (NoOpAction(),))
         
@@ -43,7 +43,7 @@ class TestDaemonQueue(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(q.dropped_count, 1)
 
     def test_queue_accepts_new_items_after_capacity_recovers(self):
-        q = DropNewestActionQueue(capacity=1)
+        q = DropNewestEventQueue(capacity=1)
         plan1 = ActionPlan(OfficialControl.A1, ResolutionStatus.CONFIGURED, (NoOpAction(),))
         plan2 = ActionPlan(OfficialControl.A2, ResolutionStatus.CONFIGURED, (NoOpAction(),))
         

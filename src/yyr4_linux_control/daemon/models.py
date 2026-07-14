@@ -48,6 +48,13 @@ class RuntimeSnapshot:
     started_at: float
     uptime_seconds: float
     config_revision: int
+    
+    # New M3.2 Context Fields
+    selected_profile: str
+    active_layer: str
+    context_revision: int
+    last_context_change_source: str
+    
     current_session_active: bool
     sessions_started: int
     successful_sessions: int
@@ -74,6 +81,12 @@ class RuntimeSnapshot:
             "started_at": self.started_at,
             "uptime_seconds": self.uptime_seconds,
             "config_revision": self.config_revision,
+            
+            "selected_profile": self.selected_profile,
+            "active_layer": self.active_layer,
+            "context_revision": self.context_revision,
+            "last_context_change_source": self.last_context_change_source,
+            
             "current_session_active": self.current_session_active,
             "sessions_started": self.sessions_started,
             "successful_sessions": self.successful_sessions,

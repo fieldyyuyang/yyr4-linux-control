@@ -17,7 +17,7 @@ from .interfaces import (
     Clock,
     SignalController,
 )
-from .queue import DropNewestActionQueue
+from .queue import DropNewestEventQueue
 from .session import ProductionInputSession, ProductionInputSessionFactory
 from .runtime import DaemonRuntime
 from .signals import NativeSignalController

@@ -4,6 +4,7 @@ from pathlib import Path
 
 from .models import OfficialControl, _OFFICIAL_CONTROL_NAMES, LayerId, ProfileId, LayerConfig, ProfileConfig, LayeredControlConfig
 from .actions import (
+    SetLayerAction, NextLayerAction, PreviousLayerAction, SetProfileAction,
     Action, HotkeyAction, TextAction, CommandAction,
     DelayAction, MacroAction, NoOpAction, DebugLogAction
 )

@@ -4,10 +4,11 @@ from typing import List, Optional
 
 from ..control.actions import (
     ActionPlan, Action, HotkeyAction, TextAction, CommandAction,
-    DelayAction, NoOpAction, DebugLogAction, ResolutionStatus
+    DelayAction, NoOpAction, DebugLogAction, ResolutionStatus,
+    SetLayerAction, NextLayerAction, PreviousLayerAction, SetProfileAction
 )
 from .models import ExecutionStatus, StepExecutionResult, ActionExecutionResult
-from .interfaces import DesktopInputBackend, CommandRunner, DelayBackend, DebugLogBackend
+from .interfaces import DesktopInputBackend, CommandRunner, DelayBackend, DebugLogBackend, RuntimeControlBackend
 from .errors import (
     BackendUnavailableError, DesktopInputError, CommandRejectedError,
     CommandExecutionError, CommandTimeoutError, ExecutionCancelledError
@@ -19,12 +20,14 @@ class ActionExecutionEngine:
         desktop_backend: DesktopInputBackend,
         command_runner: CommandRunner,
         delay_backend: DelayBackend,
-        debug_log_backend: DebugLogBackend
+        debug_log_backend: DebugLogBackend,
+        runtime_backend: Optional[RuntimeControlBackend] = None
     ):
         self.desktop_backend = desktop_backend
         self.command_runner = command_runner
         self.delay_backend = delay_backend
         self.debug_log_backend = debug_log_backend
+        self.runtime_backend = runtime_backend
 
     async def execute(self, plan: ActionPlan) -> ActionExecutionResult:
         started_at = time.monotonic()
@@ -92,6 +95,26 @@ class ActionExecutionEngine:
                     
                 elif isinstance(step, DebugLogAction):
                     self.debug_log_backend.emit(step.message)
+                    
+                elif isinstance(step, SetLayerAction):
+                    if not self.runtime_backend:
+                        raise BackendUnavailableError("Runtime backend is unavailable")
+                    await self.runtime_backend.set_layer(step.layer)
+                    
+                elif isinstance(step, NextLayerAction):
+                    if not self.runtime_backend:
+                        raise BackendUnavailableError("Runtime backend is unavailable")
+                    await self.runtime_backend.next_layer()
+                    
+                elif isinstance(step, PreviousLayerAction):
+                    if not self.runtime_backend:
+                        raise BackendUnavailableError("Runtime backend is unavailable")
+                    await self.runtime_backend.previous_layer()
+                    
+                elif isinstance(step, SetProfileAction):
+                    if not self.runtime_backend:
+                        raise BackendUnavailableError("Runtime backend is unavailable")
+                    await self.runtime_backend.set_profile(step.profile)
                     
             except asyncio.CancelledError:
                 step_status = ExecutionStatus.CANCELLED

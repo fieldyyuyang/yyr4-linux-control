@@ -50,6 +50,23 @@ class DelayAction(Action):
 class MacroAction(Action):
     steps: Tuple[Action, ...]
 
+
+@dataclass(frozen=True)
+class SetLayerAction(Action):
+    layer: str
+
+@dataclass(frozen=True)
+class NextLayerAction(Action):
+    pass
+
+@dataclass(frozen=True)
+class PreviousLayerAction(Action):
+    pass
+
+@dataclass(frozen=True)
+class SetProfileAction(Action):
+    profile: str
+
 @dataclass(frozen=True)
 class NoOpAction(Action):
     pass
