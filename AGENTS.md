@@ -12,9 +12,10 @@ This file establishes strict behavioral constraints for AI Agents working on the
    * Git commits are ONLY allowed at complete milestone boundaries.
    * ALL user operations MUST use official control names (A1-A12, AL/AP/AR, etc.).
    * Any direction change MUST first update Project Charter and Roadmap and be confirmed by the user.
-   * GitLab主仓库远程名为main；
+   * GitLab主仓库远程名为origin；
    * GitHub镜像远程名为github；
-   * 不得默认使用origin。
+   * 本地主分支名为main；
+   * 不得假设或修改远程名称。
 3. **Reference Docs**: Before making decisions, you MUST read:
    * [docs/project-charter.md](docs/project-charter.md)
    * [docs/development-governance.md](docs/development-governance.md)

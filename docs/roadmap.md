@@ -104,15 +104,18 @@ COMPLETE
 
 本地管理接口使用 Unix Domain Socket 验证 `SO_PEERCRED`，无 HTTP/TCP 暴露。
 
-## Milestone 3 — Context-Aware Runtime Foundation
+## Milestone 3 — Context-Aware Runtime
 
 ### M3.1 Layered Configuration Domain
 当前状态：
-NEXT
+COMPLETE
 
 systemd和udev仍属于M4。
 
-### M3.2 Layers and profiles
+### M3.2 Active Layer Runtime and Switching
+当前状态：
+NEXT
+
 包括：
 - 通用层；
 - 第一层至第八层；
