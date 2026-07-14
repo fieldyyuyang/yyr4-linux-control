@@ -47,10 +47,10 @@ install-config-example:
 
 install-udev-rule:
 	install -d $(DESTDIR)$(UDEV_RULES_DIR)
-	install -m 0644 $(PACKAGING_DIR)/udev/99-yyr4.rules $(DESTDIR)$(UDEV_RULES_DIR)/99-yyr4.rules
+	install -m 0644 $(PACKAGING_DIR)/udev/72-yyr4.rules $(DESTDIR)$(UDEV_RULES_DIR)/72-yyr4.rules
 
 uninstall-udev-rule:
-	rm -f $(DESTDIR)$(UDEV_RULES_DIR)/99-yyr4.rules
+	rm -f $(DESTDIR)$(UDEV_RULES_DIR)/72-yyr4.rules
 
 reload-user-manager:
 	systemctl --user daemon-reload

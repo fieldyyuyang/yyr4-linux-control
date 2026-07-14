@@ -9,7 +9,12 @@ YYR4 runs entirely in userspace as a normal unprivileged application. It interac
 
 ## 2. udev & logind `uaccess` Principle
 To access `/dev/input/event*` nodes without root privileges, YYR4 relies on `systemd-logind`. 
-The `99-yyr4.rules` udev rule adds the `TAG+="uaccess"` to the specific YYR4 input nodes (VID 239a, PID 80f4). When a user physically logs into a local session, `logind` automatically grants that active user read/write ACLs to the tagged nodes.
+The `72-yyr4.rules` udev rule adds the `TAG+="uaccess"` to the specific YYR4 input nodes (VID 239a, PID 80f4). When a user physically logs into a local session, `logind` automatically grants that active user read/write ACLs to the tagged nodes.
+
+**Important Note on Rule Ordering:**
+The rule file must be named `72-yyr4.rules` (or any number strictly earlier than 73). systemd-logind's native `73-seat-late.rules` is responsible for actually executing the ACL injection based on the `uaccess` tag. If the rule is named `99-yyr4.rules` (a legacy incorrectly ordered rule), the tag is added too late and the ACL injection never occurs during the current enumeration cycle.
+
+Also note that rules only apply upon device enumeration. Installing or modifying the rule requires reloading udev and physically re-plugging the YYR4 device. Do NOT use `udevadm trigger` to batch trigger input devices, as this may inadvertently disrupt the desktop session. We explicitly avoid `MODE=0666` and do not depend on static `input` groups.
 
 ## 3. Why Not `MODE="0666"`?
 Using `MODE="0666"` or `0777` makes the raw keystrokes and controls globally readable and writable to any background process on the system, creating a severe security vulnerability (keylogger vector). `uaccess` correctly isolates access to the active session user.
@@ -35,7 +40,7 @@ For X11 environment variables (when systemd does not automatically export them):
 `~/.config/systemd/user/yyr4d.service`
 
 ## 10. Udev Rules Path
-`/etc/udev/rules.d/99-yyr4.rules`
+`/etc/udev/rules.d/72-yyr4.rules`
 
 ## 11. Installation Commands
 ```bash
