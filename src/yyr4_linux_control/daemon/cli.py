@@ -91,7 +91,9 @@ async def _main_async(args) -> int:
         logger.critical("Missing required --config argument.")
         return 1
 
-    mode = ExecutionMode[args.execution_mode]
+    execute_flag = getattr(args, "execute", False)
+    mode_val = "EXECUTE" if execute_flag else args.execution_mode
+    mode = ExecutionMode[mode_val]
 
     try:
         settings = RuntimeSettings(
@@ -164,6 +166,7 @@ def main():
     parser.add_argument("--version", action="version", version="0.1.0")
     parser.add_argument("--config", type=str, help="Path to TOML configuration file")
     parser.add_argument("--execution-mode", type=str, choices=["DRY_RUN", "EXECUTE"], default="EXECUTE", help="Action execution mode")
+    parser.add_argument("--execute", action="store_true", help="Explicitly enable real action execution (overrides --execution-mode)")
     parser.add_argument("--control-socket", type=str, help="Path to unix domain socket for management CLI")
     parser.add_argument("--queue-capacity", type=int, default=128, help="Maximum queued actions")
     parser.add_argument("--reconnect-initial", type=float, default=1.0, help="Initial reconnect backoff seconds")

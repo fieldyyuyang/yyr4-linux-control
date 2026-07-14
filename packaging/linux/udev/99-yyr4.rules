@@ -1,0 +1,14 @@
+# YYR4 Linux Control Udev Rules
+#
+# This rule grants access to the YYR4 device's input event nodes for the currently 
+# active local session user via systemd-logind's 'uaccess' tag.
+# 
+# NOTE: 
+# - This rule only matches the event nodes. It does not grant read/write permissions
+#   to the entire USB device or to inactive sessions.
+# - The yyr4-linux-control daemon is responsible for identity parsing and role selection.
+# - If you are not using systemd-logind or an equivalent seat manager, this rule
+#   will not automatically grant you access.
+# - We explicitly avoid 0666 modes or input groups to maintain strict security boundaries.
+
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{idVendor}=="239a", ATTRS{idProduct}=="80f4", TAG+="uaccess"

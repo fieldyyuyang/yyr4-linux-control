@@ -127,20 +127,22 @@ COMPLETE
 - schema迁移。
 
 ## Milestone 4 — Linux integration and deployment
-当前状态：
-NEXT
+当前状态： IMPLEMENTATION COMPLETE, HOST ACCEPTANCE PENDING
 
-此时才实现：
-- 精确udev规则；
-- 专用组或logind ACL；
-- systemd unit；
-- 安装与卸载；
-- 配置目录；
-- 日志管理；
-- 打包。
+NEXT: Milestone 4 — Real Host Integration Acceptance
 
-明确：
-Targeted Udev Rules属于M4，也是当前的NEXT目标。
+已实现静态集成资产：
+- 精确udev uaccess规则；
+- systemd user unit；
+- 可重复的安装与卸载Makefile；
+- 集成验证测试。
+
+剩余真实主机验证（Real Host Integration Acceptance）：
+- 安装规则与unit；
+- reload udev并重插设备验证logind ACL；
+- 启动服务验证status与context；
+- 注销重登验证autostart；
+- 验证回滚。
 
 ## Milestone 5 — Optional graphical configurator
 包括：

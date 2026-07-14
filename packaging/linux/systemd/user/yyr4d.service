@@ -1,0 +1,40 @@
+[Unit]
+Description=YYR4 Linux Control Daemon
+Documentation=https://github.com/fieldyyuyang/yyr4-linux-control
+After=graphical-session.target
+
+[Service]
+Type=simple
+Environment=PYTHONUNBUFFERED=1
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=-%h/.config/yyr4/yyr4d.env
+RuntimeDirectory=yyr4
+RuntimeDirectoryMode=0700
+UMask=0077
+
+ExecStartPre=/usr/bin/env yyr4ctl validate --config %h/.config/yyr4/config.toml
+
+ExecStart=/usr/bin/env yyr4d \
+  --config %h/.config/yyr4/config.toml \
+  --control-socket %t/yyr4/yyr4d.sock \
+  --execute
+
+Restart=on-failure
+RestartSec=2s
+TimeoutStopSec=15s
+KillSignal=SIGTERM
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=default.target
