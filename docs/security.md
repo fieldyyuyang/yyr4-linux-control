@@ -13,6 +13,13 @@
   * CSRF tokens for state-changing REST calls.
 * **Audit**: Connections are logged.
 
+## 2.5 Local Management API (CLI)
+* **Threat**: Malicious local users reloading daemon configuration or executing dry-runs.
+* **Prevention**:
+  * The management socket MUST use Unix Domain Sockets (UDS) located securely in `$XDG_RUNTIME_DIR`.
+  * The daemon MUST verify the UID of the connected client using `SO_PEERCRED` to ensure exact identity matching.
+  * Socket permissions MUST be 0600 or 0700.
+
 ## 3. Command Execution & Macro Injection
 * **Threat**: A downloaded profile contains hidden `rm -rf` commands or attempts shell injection.
 * **Prevention**:
@@ -51,9 +58,10 @@ Before any real hardware validation tool runs, users must explicitly acknowledge
 ## 安全实施顺序 (Phased Security Implementation)
 1. M2.1纯领域模型与dry-run，无系统副作用 (已完成)；
 2. M2.2集中封装真实副作用 (已完成)；
-3. M2.3 daemon使用最小权限 (NEXT)；
-4. M4再实现精确udev/systemd部署；
-5. 禁止为了提前完成udev而阻塞核心运行时开发。
+3. M2.3 daemon使用最小权限 (已完成)；
+4. M2.4 本地管理平面使用UDS/SO_PEERCRED身份验证 (已完成)；
+5. M3/M4再实现精确udev/systemd部署；
+6. 禁止为了提前完成udev而阻塞核心运行时开发。
 
 ## 命令动作约束 (Command Action Security Constraints)
 命令动作要求预先记录：

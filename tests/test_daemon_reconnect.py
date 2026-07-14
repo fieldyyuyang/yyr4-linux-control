@@ -123,7 +123,8 @@ class TestDaemonReconnect(unittest.IsolatedAsyncioTestCase):
         runtime = DaemonRuntime(self.settings, factory, self.executor, self.clock)
         
         run_task = asyncio.create_task(runtime.run())
-        await asyncio.sleep(0.01)
+        while runtime._current_session is not s2:
+            await asyncio.sleep(0.001)
         runtime.request_stop()
         await run_task
         

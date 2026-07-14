@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import sys
+from pathlib import Path
 import logging
 import json
 import os
@@ -18,6 +19,8 @@ from .runtime import DaemonRuntime
 from .session import ProductionInputSessionFactory
 from .signals import NativeSignalController
 from .interfaces import ActionPlanExecutor
+from yyr4_linux_control.management.socket_path import get_default_socket_path
+from yyr4_linux_control.management.server import ManagementServer
 
 logger = logging.getLogger("yyr4_linux_control.daemon")
 
@@ -88,7 +91,7 @@ async def _main_async(args) -> int:
         logger.critical("Missing required --config argument.")
         return 1
 
-    mode = ExecutionMode.EXECUTE if args.execute else ExecutionMode.DRY_RUN
+    mode = ExecutionMode[args.execution_mode]
 
     try:
         settings = RuntimeSettings(
@@ -105,7 +108,7 @@ async def _main_async(args) -> int:
         logger.critical(f"Invalid runtime settings: {e}")
         return 1
 
-    session_factory = ProductionInputSessionFactory(include_mouse=True)
+    factory = ProductionInputSessionFactory(include_mouse=True)
     
     if mode == ExecutionMode.EXECUTE:
         logger.warning("EXECUTE mode is enabled. Real system actions will be performed.")
@@ -116,18 +119,36 @@ async def _main_async(args) -> int:
 
     runtime = DaemonRuntime(
         settings=settings,
-        input_session_factory=session_factory,
+        input_session_factory=factory,
         action_executor=executor
     )
 
+    try:
+        socket_path = Path(args.control_socket) if args.control_socket else get_default_socket_path()
+    except Exception as e:
+        logger.critical(f"Failed to determine socket path: {e}")
+        return 1
+
+    server = ManagementServer(runtime, socket_path)
+    try:
+        await server.start()
+    except Exception as e:
+        logger.critical(f"Failed to start management server: {e}")
+        return 1
+
+    run_task = asyncio.create_task(runtime.run())
     loop = asyncio.get_running_loop()
     signals = NativeSignalController()
     signals.setup(loop, on_stop=runtime.request_stop, on_reload=runtime.request_reload)
 
     # 2. Run
-    await runtime.run()
-
+    try:
+        await run_task
+    except asyncio.CancelledError:
+        pass
+    
     # 3. Handle shutdown and output snapshot
+    await server.stop()
     snapshot = runtime.snapshot()
     if args.json_final_status:
         # JSON strictly to stdout
@@ -142,7 +163,8 @@ def main():
     parser = argparse.ArgumentParser(description="YYR4 Linux Control Daemon Runtime")
     parser.add_argument("--version", action="version", version="0.1.0")
     parser.add_argument("--config", type=str, help="Path to TOML configuration file")
-    parser.add_argument("--execute", action="store_true", help="Enable actual execution of actions (default is DRY_RUN)")
+    parser.add_argument("--execution-mode", type=str, choices=["DRY_RUN", "EXECUTE"], default="EXECUTE", help="Action execution mode")
+    parser.add_argument("--control-socket", type=str, help="Path to unix domain socket for management CLI")
     parser.add_argument("--queue-capacity", type=int, default=128, help="Maximum queued actions")
     parser.add_argument("--reconnect-initial", type=float, default=1.0, help="Initial reconnect backoff seconds")
     parser.add_argument("--reconnect-max", type=float, default=60.0, help="Max reconnect backoff seconds")

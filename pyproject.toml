@@ -15,6 +15,7 @@ dependencies = []
 yyr4-identity-permission-probe = "yyr4_linux_control.tools.identity_permission_probe:main"
 yyr4-observe = "yyr4_linux_control.tools.observe_probe:main"
 yyr4d = "yyr4_linux_control.daemon.cli:main"
+yyr4ctl = "yyr4_linux_control.management.cli:main"
 
 [project.optional-dependencies]
 linux-input = [

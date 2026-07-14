@@ -32,6 +32,9 @@ The daemon runtime provides the `yyr4d` executable that orchestrates the entire 
 4. **`NativeSignalController`**
    A platform-specific signal watcher hooking Unix signals (`SIGINT`, `SIGTERM`, `SIGHUP`) into Python `asyncio.Event`s that gracefully interrupt the runtime loop.
 
+5. **`ManagementServer`**
+   A Unix Domain Socket server (`$XDG_RUNTIME_DIR/yyr4d.sock`) that exposes a local JSON API. Validates caller identity using `SO_PEERCRED`. Serves the `yyr4ctl` management plane without interrupting the main event loop.
+
 ## Flow
 
 1. Initialize `RuntimeSettings` from CLI arguments.

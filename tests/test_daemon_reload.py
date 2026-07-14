@@ -160,7 +160,7 @@ class TestDaemonReload(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0.01)
         
         snap = runtime.snapshot()
-        self.assertEqual(snap.config_reload_successes, 1) # Coalesced
+        self.assertEqual(snap.config_reload_successes, 3) # Serialized
         
         runtime.request_stop()
         await run_task

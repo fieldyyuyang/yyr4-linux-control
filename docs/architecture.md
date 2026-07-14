@@ -4,8 +4,9 @@
 * `YYR4`: The programmable hardware keypad.
 * `yyr4-linux-control`: The project name.
 * `yyr4d`: The privileged background daemon.
-* `Web UI`: The browser-based frontend configuration tool.
-* `Web API` / `WebSocket`: Interfaces exposed by the `control service`.
+* `Web UI`: The browser-based frontend configuration tool (planned).
+* `yyr4ctl`: The official Management CLI for inspecting and controlling the daemon.
+* `Web API` / `WebSocket`: Interfaces exposed by the `control service` (planned).
 * `Profile`: A collection of Layers tied to an application context.
 * `Layer`: A specific mapping of keys/encoders to Actions.
 * `Action`: A discrete task (e.g., emitting a keystroke, running a command).
@@ -23,11 +24,14 @@ graph TD
 
     UI[Web UI] <-->|Web API / WebSocket| CS[control service]
     CS <--> D
+
+    CLI[yyr4ctl] <-->|UDS socket| D
 ```
 
 ## Process and Permission Boundaries
-1. **yyr4d (Daemon)**: Runs with sufficient privileges to use `EVIOCGRAB` on the YYR4's `evdev` nodes and write to `/dev/uinput`. The daemon operates strictly in userspace. Note: We are currently in Milestone 1.3A, preparing a read-only validation tool. The full daemon and uinput generation are not yet implemented.
-2. **control service**: Exposes the local Web API (`127.0.0.1` only). It must safely proxy configurations to `yyr4d`.
+1. **yyr4d (Daemon)**: Runs with sufficient privileges to use `EVIOCGRAB` on the YYR4's `evdev` nodes and write to `/dev/uinput`. The daemon operates strictly in userspace. Exposes a Unix Domain Socket for local management.
+2. **yyr4ctl (Management CLI)**: Communicates securely with the daemon via Unix Domain Sockets (`$XDG_RUNTIME_DIR/yyr4d.sock`), verifying identical User ID (SO_PEERCRED).
+3. **control service**: Exposes the local Web API (`127.0.0.1` only). It must safely proxy configurations to `yyr4d`.
 3. **Web UI**: Runs in the browser unprivileged.
 
 ## Target Architecture Data Flow
@@ -38,7 +42,7 @@ graph TD
 5. **ActionResolver**: Maps `OfficialControlEvent` instances against a loaded user profile (`.toml`) to produce an `ActionPlan`.
 6. **ActionExecutionEngine**: Consumes `ActionPlan`, dispatches individual action steps to designated backends (e.g. `CommandRunner`, `DesktopInputBackend`), manages timeouts and cancellation, and halts sequences cleanly upon errors.
 7. **Daemon Runtime**: Coordinates lifecycle and configuration loading.
-8. **CLI / GUI**: Presentation and configuration tools (no direct hardware access).
+8. **Management CLI (`yyr4ctl`)**: Presentation and configuration inspection tool (no direct hardware access). Coordinates via the daemon runtime UDS socket.
 
 ## Fault Recovery & Extensions
 * Hotplug disconnections cause graceful release of `EVIOCGRAB`.
@@ -75,7 +79,7 @@ graph TD
 负责daemon生命周期、重连、热加载和日志。
 
 ### Presentation layer
-CLI和GUI，不直接访问硬件。
+管理命令行 (`yyr4ctl`) 和 GUI (规划中)，不直接访问硬件，通过 UDS 通信。
 
 同时明确：
 - Probe是诊断工具，不是主运行时；

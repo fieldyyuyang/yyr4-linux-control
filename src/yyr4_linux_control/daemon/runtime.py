@@ -62,7 +62,7 @@ class DaemonRuntime:
         self._action_resolver: Optional[ActionResolver] = None
         
         self._stop_event = asyncio.Event()
-        self._reload_event = asyncio.Event()
+        self._reload_queue = asyncio.Queue()
         
         # Internal task handles
         self._main_task = None
@@ -110,7 +110,19 @@ class DaemonRuntime:
         self._stop_event.set()
 
     def request_reload(self) -> None:
-        self._reload_event.set()
+        if self._state in (DaemonState.STOPPING, DaemonState.STOPPED, DaemonState.FAILED):
+            return
+        # Fire and forget
+        fut = asyncio.get_event_loop().create_future()
+        self._reload_queue.put_nowait(fut)
+
+    async def request_reload_and_wait(self) -> dict:
+        if self._state in (DaemonState.STOPPING, DaemonState.STOPPED, DaemonState.FAILED):
+            return {"success": False, "error_code": "DAEMON_STOPPING", "config_revision": self._config_revision}
+            
+        fut = asyncio.get_event_loop().create_future()
+        await self._reload_queue.put(fut)
+        return await fut
 
     async def _try_load_config(self) -> ActionResolver:
         try:
@@ -121,7 +133,7 @@ class DaemonRuntime:
         except Exception as e:
             raise FatalRuntimeError(f"Failed to load configuration: {e}") from e
 
-    async def _handle_reload(self) -> None:
+    async def _handle_reload(self, fut: asyncio.Future) -> None:
         logger.info("Handling configuration reload request...")
         try:
             new_resolver = await self._try_load_config()
@@ -129,10 +141,14 @@ class DaemonRuntime:
             self._config_revision += 1
             self._config_reload_successes += 1
             logger.info(f"Configuration reloaded successfully. Revision: {self._config_revision}")
+            if not fut.done():
+                fut.set_result({"success": True, "config_revision": self._config_revision, "reload_successes": self._config_reload_successes})
         except FatalRuntimeError as e:
             self._config_reload_failures += 1
             self._last_error_code = "RELOAD_FAILED"
             logger.error(f"Configuration reload failed: {e}. Retaining previous configuration.")
+            if not fut.done():
+                fut.set_result({"success": False, "error_code": "RELOAD_FAILED", "config_revision": self._config_revision})
 
     async def _executor_loop(self) -> None:
         try:
@@ -171,13 +187,37 @@ class DaemonRuntime:
         try:
             while not self._stop_event.is_set():
                 try:
-                    await asyncio.wait_for(self._reload_event.wait(), timeout=0.5)
+                    # We use wait_for to periodically check stop_event
+                    get_task = asyncio.create_task(self._reload_queue.get())
+                    stop_wait_task = asyncio.create_task(self._stop_event.wait())
+                    
+                    done, pending = await asyncio.wait(
+                        [get_task, stop_wait_task],
+                        return_when=asyncio.FIRST_COMPLETED,
+                        timeout=0.5
+                    )
+                    
+                    if get_task in done:
+                        fut = get_task.result()
+                        await self._handle_reload(fut)
+                        self._reload_queue.task_done()
+                    else:
+                        get_task.cancel()
+                        
+                    for t in pending:
+                        t.cancel()
+                        
                 except asyncio.TimeoutError:
                     continue
-                self._reload_event.clear()
-                await self._handle_reload()
         except asyncio.CancelledError:
             pass
+        finally:
+            # Reject pending reloads
+            while not self._reload_queue.empty():
+                fut = self._reload_queue.get_nowait()
+                if not fut.done():
+                    fut.set_result({"success": False, "error_code": "DAEMON_STOPPING", "config_revision": self._config_revision})
+                self._reload_queue.task_done()
 
     async def _run_session(self) -> None:
         self._current_session = self._input_session_factory.create_session()
