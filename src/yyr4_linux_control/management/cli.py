@@ -74,24 +74,38 @@ async def _send_command(args, command: str, params: dict = None) -> dict:
 def cmd_validate(args):
     try:
         config = load_control_config_from_file(Path(args.config))
-        count = len(config)
+        count = 0
         types = set()
-        for ctrl_action in config.values():
-            from yyr4_linux_control.control.actions import MacroAction
-            if isinstance(ctrl_action, MacroAction):
-                types.update([type(a).__name__ for a in ctrl_action.steps])
-            else:
-                types.add(type(ctrl_action).__name__)
+        for profile in config.profiles.values():
+            for layer in profile.layers.values():
+                for ctrl_action in layer.controls.values():
+                    count += 1
+                    from yyr4_linux_control.control.actions import MacroAction
+                    if isinstance(ctrl_action, MacroAction):
+                        types.update([type(a).__name__ for a in ctrl_action.steps])
+                    else:
+                        types.add(type(ctrl_action).__name__)
+        
+        profile_count = len(config.profiles)
+        layer_count = sum(len(p.layers) for p in config.profiles.values())
         
         if args.json:
             print(json.dumps({
-                "schema_version": 1,
+                "schema_version": config.schema_version,
+                "profile_count": profile_count,
+                "default_profile": config.default_profile.value,
+                "initial_layer": config.initial_layer.value,
+                "layer_count": layer_count,
                 "configured_control_count": count,
                 "action_types": list(types),
                 "valid": True
             }))
         else:
-            print(f"Schema Version: 1")
+            print(f"Schema Version: {config.schema_version}")
+            print(f"Profiles: {profile_count}")
+            print(f"Default Profile: {config.default_profile.value}")
+            print(f"Initial Layer: {config.initial_layer.value}")
+            print(f"Total Layers: {layer_count}")
             print(f"Configured Controls: {count}")
             print(f"Action Types: {', '.join(types) if types else 'None'}")
             print("Status: VALID")
@@ -131,56 +145,70 @@ def cmd_show_config(args):
     try:
         config = load_control_config_from_file(Path(args.config))
         summary = {
-            "schema_version": 1,
-            "controls": {}
+            "schema_version": config.schema_version,
+            "default_profile": config.default_profile.value,
+            "initial_layer": config.initial_layer.value,
+            "profiles": {}
         }
-        for name, ctrl_action in config.items():
-            ctrl_name = name.value
-            
-            from yyr4_linux_control.control.actions import MacroAction
-            if isinstance(ctrl_action, MacroAction):
-                steps = ctrl_action.steps
-            else:
-                steps = [ctrl_action]
-            
-            steps_sum = []
-            for step in steps:
-                t = type(step).__name__
-                if t == "TextAction":
-                    if args.show_sensitive:
-                        steps_sum.append({"type": t, "text": step.value})
+        for profile_id, profile in config.profiles.items():
+            profile_summary = {}
+            for layer_id, layer in profile.layers.items():
+                layer_summary = {}
+                for name, ctrl_action in layer.controls.items():
+                    ctrl_name = name.value
+                    
+                    from yyr4_linux_control.control.actions import MacroAction
+                    if isinstance(ctrl_action, MacroAction):
+                        steps = ctrl_action.steps
                     else:
-                        steps_sum.append({"type": t, "length": len(step.value)})
-                elif t == "CommandAction":
-                    if args.show_sensitive:
-                        steps_sum.append({"type": t, "command": step.argv[0] if step.argv else "", "args": list(step.argv[1:])})
-                    else:
-                        basename = Path(step.argv[0]).name if step.argv else ""
-                        steps_sum.append({"type": t, "basename": basename})
-                elif t == "DebugLogAction":
-                    if args.show_sensitive:
-                        steps_sum.append({"type": t, "message": step.message})
-                    else:
-                        steps_sum.append({"type": t})
-                elif t == "HotkeyAction":
-                    steps_sum.append({"type": t, "keys": list(step.keys)})
-                elif t == "DelayAction":
-                    steps_sum.append({"type": t, "milliseconds": step.milliseconds})
-                elif t == "NoOpAction":
-                    steps_sum.append({"type": t})
+                        steps = [ctrl_action]
+                    
+                    steps_sum = []
+                    for step in steps:
+                        t = type(step).__name__
+                        if t == "TextAction":
+                            if args.show_sensitive:
+                                steps_sum.append({"type": t, "text": step.value})
+                            else:
+                                steps_sum.append({"type": t, "length": len(step.value)})
+                        elif t == "CommandAction":
+                            if args.show_sensitive:
+                                steps_sum.append({"type": t, "command": step.argv[0] if step.argv else "", "args": list(step.argv[1:])})
+                            else:
+                                basename = Path(step.argv[0]).name if step.argv else ""
+                                steps_sum.append({"type": t, "basename": basename})
+                        elif t == "DebugLogAction":
+                            if args.show_sensitive:
+                                steps_sum.append({"type": t, "message": step.message})
+                            else:
+                                steps_sum.append({"type": t})
+                        elif t == "HotkeyAction":
+                            steps_sum.append({"type": t, "keys": list(step.keys)})
+                        elif t == "DelayAction":
+                            steps_sum.append({"type": t, "milliseconds": step.milliseconds})
+                        elif t == "NoOpAction":
+                            steps_sum.append({"type": t})
 
-            summary["controls"][ctrl_name] = {"action": steps_sum}
+                    layer_summary[ctrl_name] = {"action": steps_sum}
+                profile_summary[layer_id.value] = layer_summary
+            summary["profiles"][profile_id.value] = profile_summary
         
         if args.json:
             print(json.dumps(summary))
         else:
-            print(f"Schema Version: 1")
-            for c, ctrl in summary["controls"].items():
-                print(f"[{c}]")
-                for i, step in enumerate(ctrl["action"]):
-                    print(f"  Step {i+1}: {step}")
-            if not summary["controls"]:
-                print("No controls mapped.")
+            print(f"Schema Version: {config.schema_version}")
+            print(f"Default Profile: {config.default_profile.value}")
+            print(f"Initial Layer: {config.initial_layer.value}")
+            for p_id, p_data in summary["profiles"].items():
+                print(f"\n[Profile: {p_id}]")
+                for l_id, l_data in p_data.items():
+                    print(f"  [Layer: {l_id}]")
+                    for c, ctrl in l_data.items():
+                        print(f"    [{c}]")
+                        for i, step in enumerate(ctrl["action"]):
+                            print(f"      Step {i+1}: {step}")
+                    if not l_data:
+                        print("    No controls mapped.")
         sys.exit(EXIT_SUCCESS)
     except ConfigValidationError as e:
         if args.json:
@@ -192,6 +220,8 @@ def cmd_show_config(args):
 def cmd_dry_run(args):
     try:
         from yyr4_linux_control.domain.events import ControlPhase
+        from yyr4_linux_control.control.actions import LayeredActionResolver
+        from yyr4_linux_control.control.models import ProfileId, LayerId
         
         try:
             official_ctrl = OfficialControl(args.control)
@@ -209,11 +239,42 @@ def cmd_dry_run(args):
         )
         
         config = load_control_config_from_file(Path(args.config))
-        resolver = ActionResolver(config)
-        plan = resolver.resolve(ev)
+        
+        profile_str = args.profile if hasattr(args, 'profile') and args.profile else config.default_profile.value
+        try:
+            profile_id = ProfileId(profile_str)
+        except ValueError as e:
+            if args.json:
+                print(json.dumps({"error": str(e)}))
+            else:
+                eprint(f"Invalid profile: {e}")
+            sys.exit(EXIT_ARGS)
+            
+        layer_str = args.layer if hasattr(args, 'layer') and args.layer else config.initial_layer.value
+        try:
+            layer_id = LayerId(layer_str)
+        except ValueError as e:
+            if args.json:
+                print(json.dumps({"error": f"Unknown LayerId: {layer_str}"}))
+            else:
+                eprint(f"Unknown LayerId: {layer_str}")
+            sys.exit(EXIT_ARGS)
+        
+        resolver = LayeredActionResolver(config)
+        try:
+            plan = resolver.resolve(ev, profile_id, layer_id)
+        except Exception as e:
+            if args.json:
+                print(json.dumps({"error": str(e)}))
+            else:
+                eprint(f"Resolution Error: {e}")
+            sys.exit(EXIT_CONFIG)
         
         res_dict = {
             "control": args.control,
+            "profile": profile_id.value,
+            "layer": layer_id.value,
+            "mapping_source": plan.mapping_source,
             "resolution": plan.resolution_status.name,
         }
         
@@ -232,6 +293,9 @@ def cmd_dry_run(args):
             print(json.dumps(res_dict))
         else:
             print(f"Control: {res_dict['control']}")
+            print(f"Profile: {res_dict['profile']}")
+            print(f"Layer: {res_dict['layer']}")
+            print(f"Mapping Source: {res_dict['mapping_source']}")
             print(f"Resolution: {res_dict['resolution']}")
             if "execution" in res_dict:
                 print("Dry Run Execution Logs:")
@@ -307,6 +371,8 @@ def main():
     p_dry = subparsers.add_parser("dry-run")
     p_dry.add_argument("control", type=str)
     p_dry.add_argument("--config", required=True, type=str)
+    p_dry.add_argument("--profile", type=str, help="Override profile for dry run")
+    p_dry.add_argument("--layer", type=str, help="Override layer for dry run")
     p_dry.add_argument("--json", action="store_true")
 
     p_status = subparsers.add_parser("status")

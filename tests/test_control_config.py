@@ -29,16 +29,25 @@ steps = [
 type = "noop"
 """
         config = load_control_config_from_string(toml_str)
-        self.assertEqual(len(config), 3)
-        self.assertIsInstance(config[OfficialControl.A1], HotkeyAction)
-        self.assertEqual(config[OfficialControl.A1].keys, ("CTRL", "C"))
+        self.assertEqual(config.schema_version, 1)
+        self.assertEqual(config.default_profile.value, "default")
+        self.assertEqual(config.initial_layer.value, "general")
+        self.assertIn("default", [p.value for p in config.profiles.keys()])
         
-        self.assertIsInstance(config[OfficialControl.AP], MacroAction)
-        self.assertEqual(len(config[OfficialControl.AP].steps), 2)
-        self.assertIsInstance(config[OfficialControl.AP].steps[0], TextAction)
-        self.assertIsInstance(config[OfficialControl.AP].steps[1], DelayAction)
+        default_profile = config.profiles[config.default_profile]
+        general_layer = default_profile.layers[config.initial_layer]
+        controls = general_layer.controls
+        
+        self.assertEqual(len(controls), 3)
+        self.assertIsInstance(controls[OfficialControl.A1], HotkeyAction)
+        self.assertEqual(controls[OfficialControl.A1].keys, ("CTRL", "C"))
+        
+        self.assertIsInstance(controls[OfficialControl.AP], MacroAction)
+        self.assertEqual(len(controls[OfficialControl.AP].steps), 2)
+        self.assertIsInstance(controls[OfficialControl.AP].steps[0], TextAction)
+        self.assertIsInstance(controls[OfficialControl.AP].steps[1], DelayAction)
 
-        self.assertIsInstance(config[OfficialControl.BL], NoOpAction)
+        self.assertIsInstance(controls[OfficialControl.BL], NoOpAction)
 
     def test_missing_schema_version(self):
         with self.assertRaises(UnsupportedSchemaVersionError):
@@ -46,7 +55,7 @@ type = "noop"
 
     def test_wrong_schema_version(self):
         with self.assertRaises(UnsupportedSchemaVersionError):
-            load_control_config_from_string("schema_version = 2\n[controls.A1]")
+            load_control_config_from_string("schema_version = 3\n")
 
     def test_syntax_error(self):
         with self.assertRaises(ConfigSyntaxError):
@@ -99,3 +108,26 @@ type = "noop"
     def test_unknown_field_in_action(self):
         with self.assertRaises(ConfigValidationError):
             load_control_config_from_string("schema_version = 1\n[controls.A1.action]\ntype='noop'\nfoo='bar'")
+
+    def test_schema_v2_valid(self):
+        toml_str = """
+schema_version = 2
+default_profile = "my_prof"
+initial_layer = "layer_1"
+
+[profiles.my_prof.layers.general.controls.A1]
+action = { type = "noop" }
+
+[profiles.my_prof.layers.layer_1.controls.A1]
+action = { type = "text", value = "hello" }
+"""
+        config = load_control_config_from_string(toml_str)
+        self.assertEqual(config.schema_version, 2)
+        self.assertEqual(config.default_profile.value, "my_prof")
+        self.assertEqual(config.initial_layer.value, "layer_1")
+        self.assertIn("my_prof", [p.value for p in config.profiles.keys()])
+        
+        prof = config.profiles[config.default_profile]
+        self.assertEqual(len(prof.layers), 2)
+        self.assertIsInstance(prof.layers[config.initial_layer].controls[OfficialControl.A1], TextAction)
+        self.assertIsInstance(prof.layers[config.profiles[config.default_profile].layers["general"].layer_id].controls[OfficialControl.A1], NoOpAction)

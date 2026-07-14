@@ -1,0 +1,21 @@
+schema_version = 2
+default_profile = "production"
+initial_layer = "general"
+
+# Profile: Production
+[profiles.production.layers.general.controls.A1]
+action = { type = "text", value = "Welcome to production profile" }
+
+[profiles.production.layers.general.controls.A2]
+action = { type = "hotkey", keys = ["CTRL", "C"] }
+
+# Layer 1
+[profiles.production.layers.layer_1.controls.A1]
+action = { type = "text", value = "Layer 1 active" }
+
+[profiles.production.layers.layer_1.controls.A3]
+action = { type = "noop" }
+
+# Profile: Testing
+[profiles.testing.layers.general.controls.A1]
+action = { type = "debug_log", message = "Testing profile active" }

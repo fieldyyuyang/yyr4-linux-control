@@ -87,7 +87,7 @@ steps = [
         
         output = mock_print.call_args[0][0]
         data = json.loads(output)
-        steps = data['controls']['A1']['action']
+        steps = data['profiles']['default']['general']['A1']['action']
         self.assertEqual(steps[0]['type'], 'TextAction')
         self.assertNotIn('value', steps[0])
         self.assertEqual(steps[0]['length'], 6)
@@ -113,7 +113,7 @@ value = "secret"
         
         output = mock_print.call_args[0][0]
         data = json.loads(output)
-        steps = data['controls']['BP']['action']
+        steps = data['profiles']['default']['general']['BP']['action']
         self.assertEqual(steps[0]['text'], 'secret')
 
         mock_exit.assert_called_with(EXIT_SUCCESS)

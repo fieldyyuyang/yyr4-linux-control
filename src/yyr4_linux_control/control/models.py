@@ -1,7 +1,8 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Mapping, Tuple, Any, Dict
 from enum import Enum, auto
+import re
 
 from ..domain.controls import PhysicalControl
 from ..domain.events import ControlPhase, ControlEvent
@@ -62,3 +63,46 @@ class OfficialControlEvent:
             phase=event.phase,
             timestamp_ns=event.timestamp_ns
         )
+
+class LayerId(str, Enum):
+    GENERAL = "general"
+    LAYER_1 = "layer_1"
+    LAYER_2 = "layer_2"
+    LAYER_3 = "layer_3"
+    LAYER_4 = "layer_4"
+    LAYER_5 = "layer_5"
+    LAYER_6 = "layer_6"
+    LAYER_7 = "layer_7"
+    LAYER_8 = "layer_8"
+
+_PROFILE_ID_PATTERN = re.compile(r'^[a-z][a-z0-9_-]{0,63}$')
+
+@dataclass(frozen=True)
+class ProfileId:
+    value: str
+
+    def __post_init__(self):
+        if not isinstance(self.value, str):
+            raise ValueError(f"ProfileId must be a string, got {type(self.value)}")
+        if not _PROFILE_ID_PATTERN.match(self.value):
+            raise ValueError(f"Invalid ProfileId: {self.value}")
+    
+    def __str__(self) -> str:
+        return self.value
+
+@dataclass(frozen=True)
+class LayerConfig:
+    layer_id: LayerId
+    controls: Mapping[OfficialControl, Any]  # Value is Action, typed Any to avoid circular import
+
+@dataclass(frozen=True)
+class ProfileConfig:
+    profile_id: ProfileId
+    layers: Mapping[LayerId, LayerConfig]
+
+@dataclass(frozen=True)
+class LayeredControlConfig:
+    schema_version: int
+    default_profile: ProfileId
+    initial_layer: LayerId
+    profiles: Mapping[ProfileId, ProfileConfig]

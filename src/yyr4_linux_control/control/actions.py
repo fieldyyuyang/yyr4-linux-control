@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Tuple, Optional, Any, Dict, List
 from enum import Enum, auto
 
-from .models import OfficialControl, OfficialControlEvent
+from .models import OfficialControl, OfficialControlEvent, LayerId, ProfileId, LayeredControlConfig
 from ..domain.events import ControlPhase
 from .errors import ResolutionError, MacroDepthExceededError, MacroStepLimitExceededError
 
@@ -68,6 +68,7 @@ class ActionPlan:
     control: OfficialControl
     resolution_status: ResolutionStatus
     steps: Tuple[Action, ...]
+    mapping_source: Optional[str] = None
 
 
 class ActionResolver:
@@ -118,6 +119,61 @@ class ActionResolver:
             return flat
         else:
             return [action]
+
+
+class LayeredActionResolver:
+    """Resolves events against a layered configuration, with profile and layer isolation and fallback."""
+
+    def __init__(self, config: LayeredControlConfig, max_macro_depth: int = 10, max_macro_steps: int = 100):
+        self.config = config
+        self.max_macro_depth = max_macro_depth
+        self.max_macro_steps = max_macro_steps
+
+    def resolve(self, event: OfficialControlEvent, profile_id: ProfileId, layer_id: LayerId) -> ActionPlan:
+        # Optimization and correctness: DOWN phase check is already in ActionResolver, 
+        # but doing it here prevents unnecessary lookups.
+        if event.phase != ControlPhase.DOWN:
+            return ActionPlan(
+                control=event.control,
+                resolution_status=ResolutionStatus.UNMAPPED,
+                steps=(),
+                mapping_source="unmapped"
+            )
+
+        profile = self.config.profiles.get(profile_id)
+        if not profile:
+            raise ValueError(f"Unknown profile: {profile_id}")
+
+        action = None
+        mapping_source = "unmapped"
+        
+        # 1. Lookup in active layer
+        active_layer = profile.layers.get(layer_id)
+        if active_layer and event.control in active_layer.controls:
+            action = active_layer.controls[event.control]
+            mapping_source = "active_layer"
+
+        # 2. Fallback to general layer
+        if action is None and layer_id != LayerId.GENERAL:
+            general_layer = profile.layers.get(LayerId.GENERAL)
+            if general_layer and event.control in general_layer.controls:
+                action = general_layer.controls[event.control]
+                mapping_source = "general_fallback"
+
+        # Delegate to single-layer ActionResolver logic
+        synthetic_config = {event.control: action} if action is not None else {}
+        inner_resolver = ActionResolver(
+            config=synthetic_config,
+            max_macro_depth=self.max_macro_depth,
+            max_macro_steps=self.max_macro_steps
+        )
+        plan = inner_resolver.resolve(event)
+        return ActionPlan(
+            control=plan.control,
+            resolution_status=plan.resolution_status,
+            steps=plan.steps,
+            mapping_source=mapping_source if plan.resolution_status == ResolutionStatus.CONFIGURED else "unmapped"
+        )
 
 
 @dataclass(frozen=True)

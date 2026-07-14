@@ -4,7 +4,7 @@ from typing import Optional
 from pathlib import Path
 
 from yyr4_linux_control.control.config import load_control_config_from_file
-from yyr4_linux_control.control.actions import ActionResolver, ResolutionStatus
+from yyr4_linux_control.control.actions import LayeredActionResolver, ResolutionStatus
 from yyr4_linux_control.control.errors import ConfigValidationError
 
 from .models import DaemonState, RuntimeSettings, RuntimeSnapshot
@@ -59,7 +59,7 @@ class DaemonRuntime:
         
         self._current_session = None
         
-        self._action_resolver: Optional[ActionResolver] = None
+        self._action_resolver: Optional[LayeredActionResolver] = None
         
         self._stop_event = asyncio.Event()
         self._reload_queue = asyncio.Queue()
@@ -124,10 +124,10 @@ class DaemonRuntime:
         await self._reload_queue.put(fut)
         return await fut
 
-    async def _try_load_config(self) -> ActionResolver:
+    async def _try_load_config(self) -> LayeredActionResolver:
         try:
             config = load_control_config_from_file(Path(self._settings.config_path))
-            return ActionResolver(config=config)
+            return LayeredActionResolver(config=config)
         except ConfigValidationError as e:
             raise FatalRuntimeError(f"Configuration is invalid: {e}") from e
         except Exception as e:
@@ -238,7 +238,11 @@ class DaemonRuntime:
 
                     self._events_received += 1
                     
-                    plan = self._action_resolver.resolve(event)
+                    plan = self._action_resolver.resolve(
+                        event,
+                        self._action_resolver.config.default_profile,
+                        self._action_resolver.config.initial_layer
+                    )
                     self._plans_resolved += 1
                     
                     if plan.resolution_status == ResolutionStatus.UNMAPPED:
