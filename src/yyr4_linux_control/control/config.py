@@ -176,7 +176,7 @@ def _parse_action(data: Any, path: str) -> Action:
         raise ConfigValidationError("action missing 'type'", path=path)
 
     # Check for unknown fields in action def
-    allowed_action_keys = {"type", "keys", "value", "argv", "timeout_seconds", "milliseconds", "steps", "message"}
+    allowed_action_keys = {"type", "keys", "value", "argv", "timeout_seconds", "milliseconds", "steps", "message", "layer", "profile"}
     for key in data:
         if key not in allowed_action_keys:
             raise ConfigValidationError(f"Unknown field in action: {key}", path=f"{path}.{key}")
@@ -234,6 +234,24 @@ def _parse_action(data: Any, path: str) -> Action:
         if not isinstance(msg, str):
             raise InvalidActionError("debug_log action requires 'message' as a string", path=path)
         return DebugLogAction(msg)
+
+    elif action_type == "set_layer":
+        layer = data.get("layer")
+        if not isinstance(layer, str):
+            raise InvalidActionError("set_layer action requires 'layer' as a string", path=path)
+        return SetLayerAction(layer)
+
+    elif action_type == "next_layer":
+        return NextLayerAction()
+
+    elif action_type == "previous_layer":
+        return PreviousLayerAction()
+
+    elif action_type == "set_profile":
+        profile = data.get("profile")
+        if not isinstance(profile, str):
+            raise InvalidActionError("set_profile action requires 'profile' as a string", path=path)
+        return SetProfileAction(profile)
 
     else:
         raise UnknownActionTypeError(f"Unknown action type: {action_type}", path=path)

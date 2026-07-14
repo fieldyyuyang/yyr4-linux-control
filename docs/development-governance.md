@@ -72,3 +72,30 @@ AI Agent必须：
 - 是否达到了值得Git提交的边界？
 
 任一问题表明漂移时，停止并回到Charter和Roadmap。
+
+## Context Refresh Protocol
+
+AI Agents must adhere to the following protocol to maintain strict alignment with the project trajectory and avoid premature implementation (e.g. implementing Milestone 4 while in Milestone 3):
+
+**Trigger Conditions:**
+Agents MUST perform a full context refresh by reading authoritative documentation:
+1. Before commencing work on a new milestone.
+2. Upon taking over a session or when a new Agent is spawned.
+3. Following context compression, quota limits, or noticeable context loss.
+4. When encountering a discrepancy regarding the current stage in `roadmap.md`.
+5. Before finalizing testing and creating milestone boundary commits.
+
+**Minimum Required Reading:**
+* `AGENTS.md`
+* `docs/project-charter.md`
+* `docs/development-governance.md`
+* `docs/roadmap.md`
+* `docs/architecture.md`
+* Any active milestone-specific documentation.
+
+**Refresh Constraints:**
+* Written documentation dictates truth; model memory is secondary.
+* Skipping milestones or inventing unlisted milestones is strictly forbidden.
+* Do not mark future phases as COMPLETE.
+* Stop and report if docs and code are conflicting.
+* Do not loop this refresh unnecessarily for micro-edits.

@@ -114,7 +114,7 @@ systemd和udev仍属于M4。
 
 ### M3.2 Active Layer Runtime and Switching
 当前状态：
-NEXT
+COMPLETE
 
 包括：
 - 通用层；
@@ -127,6 +127,9 @@ NEXT
 - schema迁移。
 
 ## Milestone 4 — Linux integration and deployment
+当前状态：
+NEXT
+
 此时才实现：
 - 精确udev规则；
 - 专用组或logind ACL；
@@ -137,7 +140,7 @@ NEXT
 - 打包。
 
 明确：
-Targeted Udev Rules属于M4，不是当前NEXT。
+Targeted Udev Rules属于M4，也是当前的NEXT目标。
 
 ## Milestone 5 — Optional graphical configurator
 包括：

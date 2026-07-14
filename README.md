@@ -6,11 +6,11 @@
 `yyr4-linux-control` is a professional, context-aware control surface platform tailored for Debian 13 and modern Linux desktops. It maximizes the capabilities of the YYR4 programmable keypad (12 mechanical keys, 4 encoders) by providing context-aware app switching, multi-layer mapping, macros, and deep system integration.
 
 ## Current State
-**[Status: Milestone 1 & 2 Completed, Milestone 3.1 Completed]**
-Device research, transport code auditing, safe device discovery, evdev input adapter logic, parser core, and validation infrastructure are complete. Control-to-Action runtime, execution engine, management CLI, daemon, and layered configuration domain are complete.
+**[Status: Milestone 1, 2 & 3 Completed]**
+Device research, transport code auditing, safe device discovery, evdev input adapter logic, parser core, and validation infrastructure are complete. Control-to-Action runtime, execution engine, management CLI, daemon, layered configuration domain, and active layer runtime switching are complete.
 
 **Current development target:**
-**Milestone 3.2 — Active Layer Runtime and Switching**
+**Milestone 4 — Linux integration and deployment**
 
 The project currently has a functioning daemon and a local management CLI (`yyr4ctl`). The Web UI is not yet developed.
 

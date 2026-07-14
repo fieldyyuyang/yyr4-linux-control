@@ -44,3 +44,26 @@ This file establishes strict behavioral constraints for AI Agents working on the
    * Agents MUST NOT blindly send 'Enter' on a timer to simulate approvals.
    * Actual CLI bindings MUST be verified by versioned auditing.
    * Reject, Cancel, and Emergency Stop MUST always be available.
+## Context Refresh Protocol
+
+To prevent scope creep, premature feature implementation, and context drift, Agents MUST perform a full context refresh by reading authoritative documentation at the following moments:
+1. Before starting a new milestone.
+2. When a new Agent or session takes over.
+3. After context compression, token limit interruptions, task recovery, or noticeable memory loss.
+4. When there is a perceived conflict with the `roadmap.md` phases.
+5. Before final milestone testing and git commits.
+
+**Minimum Required Reading List:**
+* `AGENTS.md`
+* `docs/project-charter.md`
+* `docs/development-governance.md`
+* `docs/roadmap.md`
+* `docs/architecture.md`
+* The specific design document for the current active milestone.
+
+**Rules during refresh:**
+* Authoritative documents always take precedence over the model's memory.
+* Agents MUST NOT skip milestones or invent next steps not in the roadmap.
+* Agents MUST NOT mark future phases as COMPLETE.
+* If documentation contradicts the codebase, the Agent MUST stop and report the issue rather than assuming which is correct.
+* Frequent small file edits do not require a full refresh to avoid endless loops.
