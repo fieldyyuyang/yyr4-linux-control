@@ -485,6 +485,113 @@ class TestBackendKeyNormalization(unittest.TestCase):
     def test_xf86_lowercase_is_handled(self):
         self.assertEqual(self.backend._map_key("xf86audiomute"), "XF86AudioMute")
 
+    # ── Standard keysym passthrough ──
+
+    def test_f13_accepted(self):
+        self.assertEqual(self.backend._map_key("F13"), "F13")
+
+    def test_page_up_accepted(self):
+        self.assertEqual(self.backend._map_key("Page_Up"), "Page_Up")
+
+    def test_control_r_accepted(self):
+        self.assertEqual(self.backend._map_key("Control_R"), "Control_R")
+
+    def test_shift_r_accepted(self):
+        self.assertEqual(self.backend._map_key("Shift_R"), "Shift_R")
+
+    def test_alt_r_accepted(self):
+        self.assertEqual(self.backend._map_key("Alt_R"), "Alt_R")
+
+    def test_xf86_audio_lower_volume_accepted(self):
+        self.assertEqual(self.backend._map_key("XF86AudioLowerVolume"),
+                         "XF86AudioLowerVolume")
+
+
+class TestBackendImportWithoutX11(unittest.TestCase):
+    """Verify desktop module imports without libX11 or DISPLAY."""
+
+    def setUp(self):
+        import subprocess, os, sys
+        self._env = {k: v for k, v in os.environ.items()
+                     if k not in ("DISPLAY", "XAUTHORITY")}
+        self._python = sys.executable
+
+    def _run_import_test(self, code):
+        """Run *code* in a subprocess with no DISPLAY."""
+        import subprocess
+        p = subprocess.run(
+            [self._python, "-c", code],
+            capture_output=True, text=True,
+            env=self._env,
+            timeout=10,
+        )
+        return p
+
+    def test_import_without_display(self):
+        p = self._run_import_test(
+            "from yyr4_linux_control.execution.desktop import "
+            "UnavailableDesktopInputBackend, XDoToolDesktopInputBackend; "
+            "print('OK')"
+        )
+        self.assertEqual(p.returncode, 0, f"stderr: {p.stderr}")
+        self.assertIn("OK", p.stdout)
+
+    def test_validate_without_display(self):
+        p = self._run_import_test(
+            "from yyr4_linux_control.control.config import load_control_config_from_file; "
+            "from pathlib import Path; "
+            "c = load_control_config_from_file(Path('examples/yyr4-control-from-20260711-backup.toml')); "
+            "assert c.schema_version == 2; "
+            "print('VALIDATE OK')"
+        )
+        self.assertEqual(p.returncode, 0, f"stderr: {p.stderr}")
+        self.assertIn("VALIDATE OK", p.stdout)
+
+    def test_dry_run_without_display(self):
+        p = self._run_import_test(
+            "from yyr4_linux_control.control.config import load_control_config_from_file; "
+            "from yyr4_linux_control.control.actions import ActionResolver, DryRunExecutor; "
+            "from yyr4_linux_control.control.models import OfficialControl, OfficialControlEvent; "
+            "from yyr4_linux_control.domain.events import ControlPhase; "
+            "from pathlib import Path; "
+            "c = load_control_config_from_file(Path('examples/yyr4-control-from-20260711-backup.toml')); "
+            "p = c.profiles[c.default_profile]; "
+            "r = ActionResolver(config=p.layers['general'].controls); "
+            "e = OfficialControlEvent(control=OfficialControl.A1, phase=ControlPhase.DOWN, timestamp_ns=0); "
+            "plan = r.resolve(e); "
+            "assert plan.resolution_status.name == 'CONFIGURED'; "
+            "print('DRY-RUN OK')"
+        )
+        self.assertEqual(p.returncode, 0, f"stderr: {p.stderr}")
+        self.assertIn("DRY-RUN OK", p.stdout)
+
+    def test_unavailable_backend_without_display(self):
+        p = self._run_import_test(
+            "from yyr4_linux_control.execution.desktop import UnavailableDesktopInputBackend; "
+            "b = UnavailableDesktopInputBackend(); "
+            "assert b.availability() is False; "
+            "print('UNAVAILABLE OK')"
+        )
+        self.assertEqual(p.returncode, 0, f"stderr: {p.stderr}")
+        self.assertIn("UNAVAILABLE OK", p.stdout)
+
+    def test_import_without_libx11(self):
+        """Import should succeed even with libX11 unavailable
+        (simulated by mocking find_library)."""
+        import textwrap
+        code = textwrap.dedent("""\
+            from unittest.mock import patch
+            with patch('ctypes.util.find_library', return_value=None):
+                from yyr4_linux_control.execution.desktop import (
+                    UnavailableDesktopInputBackend,
+                    XDoToolDesktopInputBackend,
+                )
+                print('NO-LIBX11 OK')
+        """)
+        p = self._run_import_test(code)
+        self.assertEqual(p.returncode, 0, f"stderr: {p.stderr}")
+        self.assertIn("NO-LIBX11 OK", p.stdout)
+
 
 class TestRecordingBackendExecution(unittest.TestCase):
     """Exercise all 24 controls through ActionExecutionEngine with recording backends."""

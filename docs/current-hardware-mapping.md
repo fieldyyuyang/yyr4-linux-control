@@ -155,10 +155,43 @@ The migrated schema v2 configuration is at:
 
 **NOT deployed to** `~/.config/yyr4/config.toml`. The user must review and manually install.
 
-## Compatibility Notes
+## Desktop Backend Compatibility
 
 1. **X11 dependency**: The xdotool backend requires X11 (`DISPLAY` env var). Wayland sessions are not supported by the current desktop backend.
-2. **Keypad keys**: `KP_Divide`, `KP_Multiply`, `KP_Subtract` use xdotool key names. These are distinct from main-keyboard `/`, `*`, `-`.
-3. **Media keys**: `XF86MonBrightnessDown`, `XF86MonBrightnessUp`, `XF86AudioMute` are standard X11 keysyms recognized by xdotool and most Linux desktop environments.
-4. **Left modifiers**: The original config uses left-specific modifiers (LCTRL, LSHIFT, LALT). These are preserved in the migration. The xdotool backend lowercases them to `lctrl`, `lshift`, `lalt` which xdotool correctly maps to `Control_L`, `Shift_L`, `Alt_L`.
-5. **MINUS/EQUAL**: Key names `MINUS` and `EQUAL` are used for the main keyboard `-` and `=` keys (as opposed to keypad variants). xdotool maps these to `minus` and `equal`.
+
+2. **Keypad keys**: `KP_Divide`, `KP_Multiply`, `KP_Subtract` map to exact X11 keysyms. These are distinct from main-keyboard `/`, `*`, `-`.
+
+3. **Media keys**: `XF86MonBrightnessDown`, `XF86MonBrightnessUp`, `XF86AudioMute` map to exact X11 keysyms recognized by xdotool and most Linux desktop environments.
+
+4. **Exact modifier keys**: The xdotool descriptor maps `LCTRL`→`Control_L`, `LSHIFT`→`Shift_L`, `LALT`→`Alt_L` (and their right-side counterparts). Generic `CTRL`/`SHIFT`/`ALT` also map to `Control_L`/`Shift_L`/`Alt_L` for backward compatibility.
+
+5. **Standard keysym passthrough**: Any valid X11 keysym name (e.g., `F13`, `Page_Up`, `Control_R`, `XF86AudioLowerVolume`) is accepted as-is. Unknown or invalid key tokens raise a `DesktopInputError` before any subprocess is invoked.
+
+6. **MINUS/EQUAL**: Key names `MINUS` and `EQUAL` map to `minus` and `equal` (main keyboard `-` and `=`, not keypad variants).
+
+## `--clearmodifiers` Semantics
+
+Per the installed xdotool man page (Debian trixie, xdotool 1:3.20160805.1-5.1):
+
+> Any command taking the --clearmodifiers flag will attempt to clear any
+> active input modifiers during the command and restore them afterwards.
+
+The operational sequence for `xdotool key --clearmodifiers` is:
+1. Query for all active modifiers (e.g., Shift if the user is holding it).
+2. Send `key up` for each active modifier to temporarily clear them.
+3. Execute the requested key sequence.
+4. Send `key down` for each previously-active modifier to restore them.
+
+**Restoration is not an unconditional guarantee.** If the user physically releases a modifier key between steps 2 and 4, the restoration step will re-press it, potentially leaving the modifier stuck. For YYR4 this is acceptable because the device is a dedicated control surface — the user is not simultaneously typing on the main keyboard. Final acceptance testing should use safe actions (e.g., DebugLog) and avoid concurrent main-keyboard modifier use.
+
+We retain `--clearmodifiers` because it prevents the user's currently-held modifiers (if any) from corrupting the YYR4 chord output. A future enhancement could make this configurable.
+
+## Pre-Reflash Readiness
+
+- Migration config structure validated ✓
+- Backend key name compatibility verified ✓
+- Standard X11 keysym passthrough supported ✓
+- No-libX11 import isolation verified ✓
+- Config NOT deployed to `~/.config/yyr4/config.toml`
+- YYR4 hardware NOT yet switched to neutral Transport Profile
+- Real-device acceptance NOT yet executed

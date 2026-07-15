@@ -17,34 +17,139 @@ class UnavailableDesktopInputBackend(DesktopInputBackend):
         raise DesktopInputError("Desktop input backend is unavailable")
 
 
-# ── X11 keysym validation ────────────────────────────────────────
+# ── Lazy X11 keysym validator ─────────────────────────────────────
+#
+# libX11 is loaded ONLY on first use, never at import time.
+# This means the entire execution.desktop module can be imported,
+# configurations can be loaded and validated, and dry-runs can be
+# performed even on systems without libX11 or an X server.
 
-def _try_resolve_keysym(name: str) -> bool:
-    """Return True if *name* is a known X11 keysym.
+def _lazy_x11():
+    """Return a (load, validate) pair for X11 keysym resolution.
 
-    This uses libX11's ``XStringToKeysym`` (read-only, no input).
-    We cache the library handle to avoid repeated dlopen calls.
+    The first call loads libX11 via ctypes; subsequent calls reuse
+    the cached handle.  If libX11 is not installed, *load* returns
+    ``False`` and *validate* always returns ``False``.
     """
     try:
-        _try_resolve_keysym._x11
+        return _lazy_x11._cached
     except AttributeError:
+        pass
+
+    try:
         import ctypes, ctypes.util
-        _lib = ctypes.util.find_library("X11")
-        if _lib is None:
+        lib_path = ctypes.util.find_library("X11")
+        if lib_path is None:
+            _lazy_x11._cached = (False, lambda _: False)
+            return _lazy_x11._cached
+        x11 = ctypes.cdll.LoadLibrary(lib_path)
+        x11.XStringToKeysym.restype = ctypes.c_ulong
+        x11.XStringToKeysym.argtypes = [ctypes.c_char_p]
+        _lazy_x11._cached = (True, lambda name: x11.XStringToKeysym(name.encode()) != 0)
+        return _lazy_x11._cached
+    except Exception:
+        _lazy_x11._cached = (False, lambda _: False)
+        return _lazy_x11._cached
+
+
+# ── Key map ───────────────────────────────────────────────────────
+#
+# Lowered config token → canonical X11 keysym string.
+# This is a pure-data constant — no X11 dependency at import time.
+#
+# Entries:
+#  1. Pre-existing public contract (original implementation)
+#  2. Left/right modifier fidelity (migration config)
+#  3. Navigation, keypad, punctuation, media keys (migration config)
+
+_KEY_MAP = {
+    # ── Pre-existing public contract ──
+    "ctrl":   "Control_L",
+    "shift":  "Shift_L",
+    "alt":    "Alt_L",
+    "super":  "Super_L",
+    "meta":   "Meta_L",
+
+    "enter":   "Return",
+    "return":  "Return",
+    "esc":     "Escape",
+    "escape":  "Escape",
+    "space":   "space",
+    "tab":     "Tab",
+    "backspace": "BackSpace",
+
+    "up":    "Up",
+    "down":  "Down",
+    "left":  "Left",
+    "right": "Right",
+
+    # ── Exact left/right modifiers ──
+    "lctrl":  "Control_L",
+    "rctrl":  "Control_R",
+    "lshift": "Shift_L",
+    "rshift": "Shift_R",
+    "lalt":   "Alt_L",
+    "ralt":   "Alt_R",
+
+    # ── Navigation / editing ──
+    "delete": "Delete",
+    "home":   "Home",
+    "end":    "End",
+
+    # ── Keypad ──
+    "kp_subtract": "KP_Subtract",
+    "kp_divide":   "KP_Divide",
+    "kp_multiply": "KP_Multiply",
+
+    # ── Punctuation ──
+    "minus": "minus",
+    "equal": "equal",
+
+    # ── Media keys ──
+    "xf86monbrightnessdown": "XF86MonBrightnessDown",
+    "xf86monbrightnessup":   "XF86MonBrightnessUp",
+    "xf86audiomute":         "XF86AudioMute",
+}
+
+# Validate the map lazily when first needed (not at import time).
+_key_map_validated = False
+
+
+def _ensure_map_validated() -> None:
+    """Lazily validate _KEY_MAP values against libX11.
+
+    Called once, on first backend use.  If libX11 is unavailable the
+    map is trusted as-is (the error will surface later when a hotkey
+    is actually sent).
+    """
+    global _key_map_validated
+    if _key_map_validated:
+        return
+    _key_map_validated = True
+
+    x11_ok, validate = _lazy_x11()
+    if not x11_ok:
+        return
+
+    for token, keysym in _KEY_MAP.items():
+        if not validate(keysym):
             raise DesktopInputError(
-                "libX11 not found — cannot validate keysym names"
+                f"Invalid keysym in key map: {token!r} → {keysym!r}"
             )
-        _x11 = ctypes.cdll.LoadLibrary(_lib)
-        _x11.XStringToKeysym.restype = ctypes.c_ulong
-        _x11.XStringToKeysym.argtypes = [ctypes.c_char_p]
-        _try_resolve_keysym._x11 = _x11
 
-    return _try_resolve_keysym._x11.XStringToKeysym(name.encode()) != 0
 
+def _validate_x11_keysym(name: str) -> bool:
+    """Return True if *name* is a resolvable X11 keysym."""
+    _, validate = _lazy_x11()
+    return validate(name)
+
+
+# ── Backend ───────────────────────────────────────────────────────
 
 class XDoToolDesktopInputBackend(DesktopInputBackend):
     def __init__(self, command_runner: CommandRunner):
         self.command_runner = command_runner
+        _ensure_map_validated()
 
     def availability(self) -> bool:
         if not shutil.which("xdotool"):
@@ -55,101 +160,39 @@ class XDoToolDesktopInputBackend(DesktopInputBackend):
             return False
         return True
 
-    # ── Key normalization ───────────────────────────────────────
+    @staticmethod
+    def _map_key(key: str) -> str:
+        """Normalize a config key token to a validated X11 keysym.
 
-    # Lowered config token → canonical X11 keysym string.
-    # Entries fall into two categories:
-    #   1.  Exact keysym names — validated at construction time against
-    #       libX11 (XStringToKeysym).  Unknown keysyms raise immediately.
-    #   2.  Single ASCII letters / digits — resolved at call time via
-    #       XStringToKeysym; rejected if not found.
-    #
-    # Tokens NOT in this map are rejected — we never silently lowercase
-    # and pass through arbitrary multi-character strings.
-    _KEY_MAP = {
-        # ── Pre-existing public contract (from original implementation) ──
-        "ctrl":  "Control_L",
-        "shift": "Shift_L",
-        "alt":   "Alt_L",
-        "super": "Super_L",
-        "meta":  "Meta_L",
-
-        "enter":  "Return",
-        "return": "Return",
-        "esc":    "Escape",
-        "escape": "Escape",
-        "space":  "space",
-        "tab":    "Tab",
-        "backspace": "BackSpace",
-
-        "up":    "Up",
-        "down":  "Down",
-        "left":  "Left",
-        "right": "Right",
-
-        # ── Exact left/right modifiers (added for migration fidelity) ──
-        "lctrl":  "Control_L",
-        "rctrl":  "Control_R",
-        "lshift": "Shift_L",
-        "rshift": "Shift_R",
-        "lalt":   "Alt_L",
-        "ralt":   "Alt_R",
-
-        # ── Navigation / editing (migration config) ──
-        "delete": "Delete",
-        "home":   "Home",
-        "end":    "End",
-
-        # ── Keypad (migration config, must not degrade to main-keyboard) ──
-        "kp_subtract": "KP_Subtract",
-        "kp_divide":   "KP_Divide",
-        "kp_multiply": "KP_Multiply",
-
-        # ── Punctuation (migration config) ──
-        "minus": "minus",
-        "equal": "equal",
-
-        # ── Media keys (migration config) ──
-        "xf86monbrightnessdown": "XF86MonBrightnessDown",
-        "xf86monbrightnessup":   "XF86MonBrightnessUp",
-        "xf86audiomute":         "XF86AudioMute",
-    }
-
-    @classmethod
-    def _validate_map(cls) -> None:
-        """Ensure every value in _KEY_MAP is a valid X11 keysym.
-
-        Called once at class-definition time.  If libX11 is unavailable
-        the check is skipped (the error will surface later when a hotkey
-        is actually sent).
+        Algorithm:
+          1. Single ASCII char → validate via X11 → return lowercase.
+          2. Known alias (lowered lookup) → return canonical keysym.
+          3. Original token is a valid X11 keysym → return as-is.
+          4. Otherwise → raise DesktopInputError.
         """
-        for token, keysym in cls._KEY_MAP.items():
-            if not _try_resolve_keysym(keysym):
-                raise DesktopInputError(
-                    f"Invalid keysym in key map: {token!r} → {keysym!r}"
-                )
-
-    def _map_key(self, key: str) -> str:
-        """Normalize a config key token to a validated X11 keysym."""
         k = key.lower()
 
-        # Single ASCII letter / digit — validate via XStringToKeysym
+        # ── Single ASCII character ──
         if len(key) == 1 and key.isascii():
-            if _try_resolve_keysym(k):
+            if _validate_x11_keysym(k):
                 return k
             raise DesktopInputError(
                 f"Unknown single-character key: {key!r}"
             )
 
-        # Look up in explicit mapping
-        mapped = self._KEY_MAP.get(k)
+        # ── Known alias ──
+        mapped = _KEY_MAP.get(k)
         if mapped is not None:
             return mapped
 
-        # Unknown multi-character token — NEVER silently pass through
+        # ── Standard X11 keysym (unmapped but valid) ──
+        if _validate_x11_keysym(key):
+            return key
+
+        # ── Reject ──
         raise DesktopInputError(
-            f"Unknown key token: {key!r} — must be an official control "
-            f"key name or standard X11 keysym"
+            f"Unknown key token: {key!r} — must be a known alias "
+            f"or a valid X11 keysym name"
         )
 
     # ── Hotkey dispatch ──────────────────────────────────────────
@@ -164,11 +207,16 @@ class XDoToolDesktopInputBackend(DesktopInputBackend):
         mapped_keys = [self._map_key(k) for k in keys]
         hotkey_str = "+".join(mapped_keys)
 
-        # --clearmodifiers: xdotool releases any currently-held
-        # modifiers (Ctrl, Shift, Alt, Super) before sending the chord,
-        # and does NOT restore them afterwards.  This is acceptable for
-        # the YYR4 control device because the user is NOT simultaneously
-        # typing on the main keyboard — YYR4 events are isolated.
+        # --clearmodifiers (from xdotool(1) man page, Debian trixie):
+        #   "Any command taking the --clearmodifiers flag will attempt
+        #    to clear any active input modifiers during the command and
+        #    restore them afterwards."
+        #   Steps: 1) query active modifiers  2) send key-up for each
+        #   3) run the command  4) send key-down to restore.
+        #   There is a race: if the user physically releases a modifier
+        #   between steps 2 and 4, restoration may re-press it.  For
+        #   the YYR4 control device this is acceptable because the user
+        #   is not simultaneously typing on the main keyboard.
         argv = ("xdotool", "key", "--clearmodifiers", hotkey_str)
         try:
             exit_code, _, stderr = await self.command_runner.run(
@@ -201,12 +249,3 @@ class XDoToolDesktopInputBackend(DesktopInputBackend):
                 )
         except Exception as e:
             raise DesktopInputError(f"Failed to execute xdotool: {e}") from e
-
-
-# ── Validate the map at import time ──────────────────────────────
-
-try:
-    XDoToolDesktopInputBackend._validate_map()
-except DesktopInputError:
-    # libX11 not available — keysyms will be validated at runtime
-    pass
