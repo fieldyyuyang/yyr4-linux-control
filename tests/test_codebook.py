@@ -1,9 +1,26 @@
 import unittest
 from yyr4_linux_control.transport.codebook import DEFAULT_CODEBOOK, TransportCode
+from yyr4_linux_control.control.models import OfficialControl, _OFFICIAL_CONTROL_NAMES
 
 class TestCodebook(unittest.TestCase):
     def test_exactly_24_mappings(self):
         self.assertEqual(len(DEFAULT_CODEBOOK._mappings), 24)
+
+    def test_official_control_enum_count(self):
+        """OfficialControl enum must have exactly 24 members."""
+        self.assertEqual(len(OfficialControl), 24)
+
+    def test_official_control_names_set_count(self):
+        """_OFFICIAL_CONTROL_NAMES frozenset must have exactly 24 entries."""
+        self.assertEqual(len(_OFFICIAL_CONTROL_NAMES), 24)
+
+    def test_codebook_vendor_names_match_official_controls(self):
+        """Every vendor_name in codebook must be a valid OfficialControl."""
+        official_set = {o.value for o in OfficialControl}
+        codebook_names = {c.vendor_name for c in DEFAULT_CODEBOOK._mappings.values()}
+        self.assertEqual(codebook_names, official_set,
+                         f"Mismatch: codebook extra={codebook_names - official_set}, "
+                         f"official extra={official_set - codebook_names}")
 
     def test_all_f13_to_f24_used(self):
         used = set()
@@ -32,6 +49,33 @@ class TestCodebook(unittest.TestCase):
             self.assertNotIn(code.string_repr, codes)
             codes.add(code.string_repr)
         self.assertEqual(len(codes), 24)
+
+    def test_no_modifier_other_than_leftshift(self):
+        """Only KEY_LEFTSHIFT is permitted as a modifier; no RIGHT shift, ctrl, alt, etc."""
+        for code in DEFAULT_CODEBOOK._mappings.keys():
+            for modifier in code.required_modifiers:
+                self.assertEqual(
+                    modifier, "KEY_LEFTSHIFT",
+                    f"Unexpected modifier {modifier} in code {code.string_repr}",
+                )
+
+    def test_buttons_have_no_modifiers(self):
+        """All 12 button controls must have empty modifier tuples."""
+        for code, ctrl in DEFAULT_CODEBOOK._mappings.items():
+            if ctrl.control_id.startswith("button."):
+                self.assertEqual(
+                    code.required_modifiers, (),
+                    f"Button {ctrl.vendor_name} has unexpected modifiers: {code.required_modifiers}",
+                )
+
+    def test_encoders_have_leftshift_modifier(self):
+        """All 12 encoder controls must have exactly KEY_LEFTSHIFT modifier."""
+        for code, ctrl in DEFAULT_CODEBOOK._mappings.items():
+            if ctrl.control_id.startswith("encoder."):
+                self.assertEqual(
+                    code.required_modifiers, ("KEY_LEFTSHIFT",),
+                    f"Encoder {ctrl.vendor_name} has wrong modifiers: {code.required_modifiers}",
+                )
 
     def test_encoder_mappings_correctness(self):
         # AL (idx 1, CCW) = LSHIFT+F13
