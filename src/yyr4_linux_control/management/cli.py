@@ -362,6 +362,39 @@ def cmd_ping(args):
         print("PONG")
     sys.exit(EXIT_SUCCESS)
 
+def cmd_preview(args):
+    """Generate a read-only HTML preview of a configuration file."""
+    from yyr4_linux_control.configurator import (
+        build_document, generate_html, write_preview,
+    )
+    from pathlib import Path
+
+    config_path = Path(args.config).resolve()
+    if not config_path.is_file():
+        eprint(f"Configuration file not found: {config_path}")
+        sys.exit(EXIT_CONFIG)
+
+    output_path = Path(args.output).resolve()
+    try:
+        doc = build_document(config_path)
+        html_content = generate_html(doc, title=args.title)
+        write_preview(html_content, output_path, config_path, force=args.force)
+    except FileExistsError as e:
+        eprint(str(e))
+        sys.exit(EXIT_CONFIG)
+    except (ValueError, IsADirectoryError) as e:
+        eprint(str(e))
+        sys.exit(EXIT_INTERNAL)
+    except Exception as e:
+        eprint(f"Failed to generate preview: {e}")
+        sys.exit(EXIT_INTERNAL)
+
+    print(f"Preview generated: {output_path}")
+    print(f"Profiles: {doc.profile_count}")
+    print(f"Layers: {doc.total_layer_count}")
+    print(f"Configured controls: {doc.total_configured_controls}")
+    sys.exit(EXIT_SUCCESS)
+
 def cmd_context_command(args):
     cmd_name = args.command
     params = {}
@@ -446,6 +479,16 @@ def main():
     p_sp.add_argument("--socket", type=str)
     p_sp.add_argument("--json", action="store_true")
 
+    p_preview = subparsers.add_parser("preview")
+    p_preview.add_argument("--config", required=True, type=str,
+                           help="Path to configuration file")
+    p_preview.add_argument("--output", required=True, type=str,
+                           help="Output HTML file path")
+    p_preview.add_argument("--title", type=str, default="YYR4 Config Preview",
+                           help="HTML page title")
+    p_preview.add_argument("--force", action="store_true",
+                           help="Overwrite existing output file")
+
     args = parser.parse_args()
 
     if args.command == "validate":
@@ -464,3 +507,5 @@ def main():
         cmd_ping(args)
     elif args.command in ("context", "set-layer", "next-layer", "previous-layer", "set-profile"):
         cmd_context_command(args)
+    elif args.command == "preview":
+        cmd_preview(args)
