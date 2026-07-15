@@ -32,14 +32,26 @@ class XDoToolDesktopInputBackend(DesktopInputBackend):
         return True
 
     def _map_key(self, key: str) -> str:
-        # Simple mapper from our unified config keys to xdotool keys
+        """Normalize a config key token to an xdotool-compatible keysym name.
+
+        Tokens not in the mapping are rejected — xdotool requires exact-case
+        X11 keysym names or its built-in modifier aliases.
+        """
         k = key.lower()
         mapping = {
+            # Modifier aliases (xdotool built-ins)
             "ctrl": "ctrl",
+            "lctrl": "ctrl",
+            "rctrl": "ctrl",
             "shift": "shift",
+            "lshift": "shift",
+            "rshift": "shift",
             "alt": "alt",
+            "lalt": "alt",
+            "ralt": "alt",
             "super": "super",
             "meta": "meta",
+            # Navigation and editing
             "enter": "Return",
             "return": "Return",
             "esc": "Escape",
@@ -47,10 +59,37 @@ class XDoToolDesktopInputBackend(DesktopInputBackend):
             "space": "space",
             "tab": "Tab",
             "backspace": "BackSpace",
+            "delete": "Delete",
+            "del": "Delete",
+            "home": "Home",
+            "end": "End",
             "up": "Up",
             "down": "Down",
             "left": "Left",
             "right": "Right",
+            "pageup": "Page_Up",
+            "pagedown": "Page_Down",
+            # Keypad
+            "kp_subtract": "KP_Subtract",
+            "kp_add": "KP_Add",
+            "kp_divide": "KP_Divide",
+            "kp_multiply": "KP_Multiply",
+            "kp_enter": "KP_Enter",
+            # Punctuation
+            "minus": "minus",
+            "equal": "equal",
+            "comma": "comma",
+            "period": "period",
+            # Media keys
+            "xf86monbrightnessdown": "XF86MonBrightnessDown",
+            "xf86monbrightnessup": "XF86MonBrightnessUp",
+            "xf86audiomute": "XF86AudioMute",
+            "xf86audiolowervolume": "XF86AudioLowerVolume",
+            "xf86audioraisevolume": "XF86AudioRaiseVolume",
+            "xf86audioplay": "XF86AudioPlay",
+            "xf86audiopause": "XF86AudioPause",
+            "xf86audionext": "XF86AudioNext",
+            "xf86audioprev": "XF86AudioPrev",
         }
         return mapping.get(k, k)
 

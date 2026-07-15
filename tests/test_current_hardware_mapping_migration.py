@@ -370,5 +370,292 @@ class TestCurrentHardwareMappingMigration(unittest.TestCase):
         pass
 
 
+class TestBackendKeyNormalization(unittest.TestCase):
+    """Verify _map_key produces xdotool-compatible keysym names."""
+
+    def setUp(self):
+        from yyr4_linux_control.execution.desktop import XDoToolDesktopInputBackend
+        self.backend = XDoToolDesktopInputBackend.__new__(XDoToolDesktopInputBackend)
+
+    # xdotool modifier aliases — not X11 keysym names but handled by
+    # xdotool internally before calling XStringToKeysym.
+    _XDOTOOL_MODIFIER_ALIASES = {
+        "ctrl", "shift", "alt", "super", "meta", "hyper", "mode_switch",
+    }
+
+    def _verify_keysym(self, token):
+        """Check that the mapped value is valid — either a known xdotool
+        modifier alias or an X11 keysym that XStringToKeysym resolves."""
+        import ctypes, ctypes.util
+        x11 = ctypes.cdll.LoadLibrary(ctypes.util.find_library("X11"))
+        x11.XStringToKeysym.restype = ctypes.c_ulong
+        x11.XStringToKeysym.argtypes = [ctypes.c_char_p]
+        mapped = self.backend._map_key(token)
+        if mapped in self._XDOTOOL_MODIFIER_ALIASES:
+            return mapped  # xdotool handles these internally
+        ks = x11.XStringToKeysym(mapped.encode())
+        self.assertNotEqual(ks, 0,
+                            f"{token!r} → {mapped!r} → NoSymbol (xdotool will fail)")
+        return mapped
+
+    def test_all_migration_tokens_resolve(self):
+        tokens = [
+            "ESC", "BACKSPACE", "ENTER", "SPACE",
+            "LCTRL", "LSHIFT", "LALT",
+            "END", "HOME", "DELETE",
+            "LEFT", "RIGHT",
+            "E", "D", "Z", "C", "V",
+            "MINUS", "EQUAL",
+            "KP_Subtract", "KP_Divide", "KP_Multiply",
+            "XF86MonBrightnessDown", "XF86MonBrightnessUp", "XF86AudioMute",
+        ]
+        for t in tokens:
+            self._verify_keysym(t)
+
+    def test_lctrl_maps_to_ctrl(self):
+        self.assertEqual(self.backend._map_key("LCTRL"), "ctrl")
+
+    def test_lshift_maps_to_shift(self):
+        self.assertEqual(self.backend._map_key("LSHIFT"), "shift")
+
+    def test_lalt_maps_to_alt(self):
+        self.assertEqual(self.backend._map_key("LALT"), "alt")
+
+    def test_esc_maps_to_escape(self):
+        self.assertEqual(self.backend._map_key("ESC"), "Escape")
+
+    def test_backspace_maps_correctly(self):
+        self.assertEqual(self.backend._map_key("BACKSPACE"), "BackSpace")
+
+    def test_enter_maps_to_return(self):
+        self.assertEqual(self.backend._map_key("ENTER"), "Return")
+
+    def test_space_maps_correctly(self):
+        self.assertEqual(self.backend._map_key("SPACE"), "space")
+
+    def test_delete_maps_correctly(self):
+        self.assertEqual(self.backend._map_key("DELETE"), "Delete")
+
+    def test_home_maps_correctly(self):
+        self.assertEqual(self.backend._map_key("HOME"), "Home")
+
+    def test_end_maps_correctly(self):
+        self.assertEqual(self.backend._map_key("END"), "End")
+
+    def test_minus_equal_map_correctly(self):
+        self.assertEqual(self.backend._map_key("MINUS"), "minus")
+        self.assertEqual(self.backend._map_key("EQUAL"), "equal")
+
+    def test_kp_tokens_map_correctly(self):
+        self.assertEqual(self.backend._map_key("KP_Subtract"), "KP_Subtract")
+        self.assertEqual(self.backend._map_key("KP_Divide"), "KP_Divide")
+        self.assertEqual(self.backend._map_key("KP_Multiply"), "KP_Multiply")
+
+    def test_xf86_tokens_map_correctly(self):
+        self.assertEqual(self.backend._map_key("XF86MonBrightnessDown"), "XF86MonBrightnessDown")
+        self.assertEqual(self.backend._map_key("XF86MonBrightnessUp"), "XF86MonBrightnessUp")
+        self.assertEqual(self.backend._map_key("XF86AudioMute"), "XF86AudioMute")
+
+
+class TestRecordingBackendExecution(unittest.TestCase):
+    """Exercise all 24 controls through ActionExecutionEngine with recording backends."""
+
+    @classmethod
+    def setUpClass(cls):
+        from yyr4_linux_control.control.config import load_control_config_from_file
+        cls.config = load_control_config_from_file(
+            Path("examples/yyr4-control-from-20260711-backup.toml"),
+        )
+
+    def _make_engine(self):
+        from yyr4_linux_control.execution.engine import ActionExecutionEngine
+        return ActionExecutionEngine(
+            desktop_backend=_RecordingDesktopBackend(),
+            command_runner=_NoOpCommandRunner(),
+            delay_backend=_FakeDelayBackend(),
+            debug_log_backend=_NoOpDebugBackend(),
+        )
+
+    def test_all_24_controls_execute_successfully(self):
+        from yyr4_linux_control.control.models import OfficialControl, OfficialControlEvent
+        from yyr4_linux_control.control.actions import LayeredActionResolver
+        from yyr4_linux_control.domain.events import ControlPhase
+        import asyncio
+
+        engine = self._make_engine()
+        resolver = LayeredActionResolver(config=self.config)
+
+        for ctrl in OfficialControl:
+            event = OfficialControlEvent(control=ctrl, phase=ControlPhase.DOWN, timestamp_ns=0)
+            plan = resolver.resolve(event, self.config.default_profile, self.config.initial_layer)
+            self.assertEqual(plan.resolution_status.name, "CONFIGURED",
+                             f"{ctrl.value} not CONFIGURED")
+
+            result = asyncio.run(engine.execute(plan))
+            self.assertEqual(result.execution_status.name, "SUCCESS",
+                             f"{ctrl.value} execution failed: {result.execution_status}")
+            self.assertEqual(result.completed_steps, result.total_steps,
+                             f"{ctrl.value}: {result.completed_steps}/{result.total_steps} steps")
+
+    def test_a6_macro_exact_execution_sequence(self):
+        from yyr4_linux_control.control.models import OfficialControl, OfficialControlEvent
+        from yyr4_linux_control.control.actions import LayeredActionResolver
+        from yyr4_linux_control.domain.events import ControlPhase
+        import asyncio
+
+        engine = self._make_engine()
+        resolver = LayeredActionResolver(config=self.config)
+
+        event = OfficialControlEvent(control=OfficialControl.A6,
+                                     phase=ControlPhase.DOWN, timestamp_ns=0)
+        plan = resolver.resolve(event, self.config.default_profile, self.config.initial_layer)
+        result = asyncio.run(engine.execute(plan))
+
+        self.assertEqual(result.total_steps, 11)
+        self.assertEqual(result.completed_steps, 11)
+        self.assertEqual(result.execution_status.name, "SUCCESS")
+
+        # Verify the key sequence sent to desktop backend
+        backend = engine.desktop_backend
+        self.assertEqual(len(backend.calls), 6)
+
+        expected_calls = [
+            ("LSHIFT", "ENTER"),
+            ("KP_Subtract",),
+            ("KP_Subtract",),
+            ("KP_Subtract",),
+            ("LSHIFT", "ENTER"),
+            ("LSHIFT", "ENTER"),
+        ]
+        for i, (actual, expected) in enumerate(zip(backend.calls, expected_calls)):
+            self.assertEqual(actual, expected,
+                             f"Step {i}: expected {expected}, got {actual}")
+
+    def test_a6_delay_sequence(self):
+        from yyr4_linux_control.control.models import OfficialControl, OfficialControlEvent
+        from yyr4_linux_control.control.actions import LayeredActionResolver
+        from yyr4_linux_control.domain.events import ControlPhase
+        import asyncio
+
+        engine = self._make_engine()
+        resolver = LayeredActionResolver(config=self.config)
+
+        event = OfficialControlEvent(control=OfficialControl.A6,
+                                     phase=ControlPhase.DOWN, timestamp_ns=0)
+        plan = resolver.resolve(event, self.config.default_profile, self.config.initial_layer)
+        asyncio.run(engine.execute(plan))
+
+        delay_backend = engine.delay_backend
+        self.assertEqual(len(delay_backend.delays), 5)
+        self.assertEqual(delay_backend.delays, [100, 20, 20, 100, 20])
+
+    def test_no_command_runner_calls(self):
+        from yyr4_linux_control.control.models import OfficialControl, OfficialControlEvent
+        from yyr4_linux_control.control.actions import LayeredActionResolver
+        from yyr4_linux_control.domain.events import ControlPhase
+        import asyncio
+
+        engine = self._make_engine()
+        resolver = LayeredActionResolver(config=self.config)
+
+        for ctrl in OfficialControl:
+            event = OfficialControlEvent(control=ctrl, phase=ControlPhase.DOWN, timestamp_ns=0)
+            plan = resolver.resolve(event, self.config.default_profile, self.config.initial_layer)
+            asyncio.run(engine.execute(plan))
+
+        self.assertEqual(engine.command_runner.call_count, 0,
+                         "CommandRunner was called — should not happen in this config")
+
+    def test_no_text_input_calls(self):
+        from yyr4_linux_control.control.models import OfficialControl, OfficialControlEvent
+        from yyr4_linux_control.control.actions import LayeredActionResolver
+        from yyr4_linux_control.domain.events import ControlPhase
+        import asyncio
+
+        engine = self._make_engine()
+        resolver = LayeredActionResolver(config=self.config)
+
+        for ctrl in OfficialControl:
+            event = OfficialControlEvent(control=ctrl, phase=ControlPhase.DOWN, timestamp_ns=0)
+            plan = resolver.resolve(event, self.config.default_profile, self.config.initial_layer)
+            asyncio.run(engine.execute(plan))
+
+        self.assertEqual(engine.desktop_backend.text_calls, 0,
+                         "Text input was called — should not happen in this config")
+
+    def test_backend_key_normalization_applied_in_execution(self):
+        """Verify that keys passed to the recording backend are the
+        config-original tokens (normalization happens downstream in xdotool)."""
+        from yyr4_linux_control.control.models import OfficialControl, OfficialControlEvent
+        from yyr4_linux_control.control.actions import LayeredActionResolver
+        from yyr4_linux_control.domain.events import ControlPhase
+        import asyncio
+
+        engine = self._make_engine()
+        resolver = LayeredActionResolver(config=self.config)
+
+        # Test a few representative controls
+        test_controls = [
+            (OfficialControl.A1, ("ESC",)),
+            (OfficialControl.A3, ("LCTRL", "LSHIFT", "END")),
+            (OfficialControl.AL, ("XF86MonBrightnessDown",)),
+            (OfficialControl.BL, ("KP_Divide",)),
+            (OfficialControl.DL, ("LCTRL", "MINUS")),
+        ]
+        for ctrl, expected_keys in test_controls:
+            event = OfficialControlEvent(control=ctrl, phase=ControlPhase.DOWN, timestamp_ns=0)
+            plan = resolver.resolve(event, self.config.default_profile, self.config.initial_layer)
+            asyncio.run(engine.execute(plan))
+
+            last_call = engine.desktop_backend.calls[-1]
+            self.assertEqual(last_call, expected_keys,
+                             f"{ctrl.value}: expected {expected_keys}, got {last_call}")
+
+
+# ── Recording/mock backends ──
+
+class _RecordingDesktopBackend:
+    """Records send_hotkey calls without executing real xdotool."""
+
+    def __init__(self):
+        self.calls = []
+        self.text_calls = 0
+
+    def availability(self):
+        return True
+
+    async def send_hotkey(self, keys):
+        self.calls.append(keys)
+
+    async def type_text(self, value):
+        self.text_calls += 1
+
+
+class _NoOpCommandRunner:
+    """Never calls real subprocess."""
+
+    def __init__(self):
+        self.call_count = 0
+
+    async def run(self, argv, timeout_seconds=None):
+        self.call_count += 1
+        return (0, b"", b"")
+
+
+class _FakeDelayBackend:
+    """Records delay values without actually sleeping."""
+
+    def __init__(self):
+        self.delays = []
+
+    async def delay(self, milliseconds):
+        self.delays.append(milliseconds)
+
+
+class _NoOpDebugBackend:
+    def emit(self, message):
+        pass
+
+
 if __name__ == "__main__":
     unittest.main()
