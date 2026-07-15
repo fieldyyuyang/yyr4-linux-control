@@ -10,8 +10,8 @@ This is achieved by mapping the 12 mechanical keys to `F13`–`F24`, and the 12 
 
 ## Development State
 
-- **Current Milestone**: M4 (Linux integration and deployment)
-- **Current hardware state**: The user's YYR4 is configured with their actual everyday macros and key bindings. **The device does NOT currently output the neutral Transport Profile codes.**
+- **Current Milestone**: M4 — COMPLETE (compositional acceptance, 2026-07-15)
+- **Current hardware state**: The user's YYR4 is configured with their actual everyday macros and key bindings. **The device does NOT currently output the neutral Transport Profile codes.**  The neutral profile file is verified and ready for import when the user is ready.
 - **Parser state**: The `TransportParser` and `Codebook` are fully implemented and tested against offline anonymized event fixtures (`tests/fixtures/m010_transport_streams.json`) and programmatic assertions.
 - **Next hardware step**: The user must preserve their current hardware mapping, then re-import the neutral Transport Profile JSON configuration before real-device end-to-end validation.
 

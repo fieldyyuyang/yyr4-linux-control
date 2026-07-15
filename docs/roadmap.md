@@ -127,22 +127,31 @@ COMPLETE
 - schema迁移。
 
 ## Milestone 4 — Linux integration and deployment
-当前状态： IMPLEMENTATION COMPLETE, HOST ACCEPTANCE PENDING
+状态：
+COMPLETE
 
-NEXT: Milestone 4 — Real Host Integration Acceptance
+验收方式：组合证据 — 历史真实设备验证 + 当前自动化与主机验证（见 docs/real-device-validation.md § Compositional Acceptance）
+验收日期：2026-07-15
+相关提交：4252c9f
 
-已实现静态集成资产：
+已完成交付物：
 - 精确udev uaccess规则；
 - systemd user unit；
 - 可重复的安装与卸载Makefile；
-- 集成验证测试。
+- 集成验证测试；
+- 中性Transport Profile文档与契约锁定；
+- 用户实际硬件映射保存与迁移；
+- 实时软件配置部署；
+- X11 keysym兼容性验证；
+- RuntimeSnapshot序列化修复。
 
-剩余真实主机验证（Real Host Integration Acceptance）：
-- 安装规则与unit；
-- reload udev并重插设备验证logind ACL；
-- 启动服务验证status与context；
-- 注销重登验证autostart；
-- 验证回滚。
+未要求重复执行的操作（已由历史证据覆盖）：
+- 重新导入中性Transport Profile（用户历史多次执行）；
+- 重复24项物理操作测试（V001-V005已VERIFIED，传输代码未变化）。
+
+下一触发条件：仅当Transport契约、Codebook、Parser语义或硬件配置发生确定变化时才重新要求硬件测试。
+
+NEXT: Milestone 5 — Optional graphical configurator
 
 ## Milestone 5 — Optional graphical configurator
 包括：

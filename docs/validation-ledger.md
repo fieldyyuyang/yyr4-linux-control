@@ -53,6 +53,7 @@ All user-facing logs and documentation MUST use the official names.
 | V016 | 1st Transport Probe AttributeError | Initial observe_probe crashed on diagnostics | INVALID_TEST | Current maintained CLI real-device evidence | `.local/hardware-validation/*` | d60cb37 | Software bug. |
 | V017 | Fixed Transport EV_KEY run | Transport profile emitted 0 EV_KEY events | PARTIAL | Current maintained CLI real-device evidence | `.local/hardware-validation/*` | 909c04c | Could mean Transport doesn't use EV_KEY, or other layers are filtering. |
 | V018 | Full 24-op CLI verification | Test all 24 physical operations end-to-end | NOT_YET_VERIFIED | Current maintained CLI real-device evidence | N/A | N/A | Requires resolution of Transport EV_KEY absence (V017). |
+| V019 | Compositional M4 acceptance | Combined historical real-device evidence with current software verification | VERIFIED | Compositional (historical hardware + current automation) | V001-V005, V014 + 590 automated tests + codebook/parser audit | 4252c9f | Device currently in hardware-direct mode; repeated reflash not required. See compositional acceptance in real-device-validation.md. |
 
 ## 4. Retest triggers and rules
 

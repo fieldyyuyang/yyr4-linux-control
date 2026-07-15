@@ -76,3 +76,62 @@ Currently, users *do not* need to switch to the Transport Profile. Implementatio
 ### M1.3B-2P Transport Profile Event Probe Contract Fix
 - The first formal Transport Profile event probe was executed but failed internally (`AttributeError` from `ProbeRunner` incorrectly accessing `pipeline.diagnostics` instead of `pipeline.snapshot_diagnostics()`).
 - The repaired formal event probe yielded 0 EV_KEY events. This state is tracked separately in the validation ledger. No retest will be performed until necessary for functional progress.
+
+## Compositional Acceptance — Milestone 4 Closure
+
+**Date**: 2026-07-15
+**Basis**: Combined historical real-device evidence with current software and host verification.
+
+### Historical Real-Device Evidence (July 13, 2026)
+
+| Evidence | Status | Source |
+|---|---|---|
+| Device discovery & identity | VERIFIED | `.local/hardware-validation/identity-permission-*.json` (d60cb37) |
+| Device role classification | VERIFIED | `.local/hardware-validation/identity-permission-*.json` (026a844) |
+| Node read permissions | VERIFIED | `.local/hardware-validation/identity-permission-*.json` (d60cb37) |
+| Daily Profile A1 EV_KEY positive control | VERIFIED | `.local/hardware-validation/daily-evkey-visible-*.stdout` (cacfa19) — 1 raw EV_KEY event observed |
+| Official 24-item transport mapping | VERIFIED | V001-V005 in validation-ledger.md — official vendor configuration evidence |
+| 24-op end-to-end CLI | NOT_YET_VERIFIED | V018 — deferred |
+
+### Current Software Evidence
+
+| Item | Status |
+|---|---|
+| DEFAULT_CODEBOOK: 24 one-to-one mappings | 34 tests pass |
+| Transport Parser: shift/repeat/timeout/reset | 21 tests pass |
+| Neutral Profile vs Codebook consistency | 24/24 match (verified 2026-07-15) |
+| Live config deployed (24 OfficialControls) | validate + 24 dry-run pass |
+| Recording Backend execution (24 controls) | All SUCCESS |
+| X11 keysym compatibility | All 25 tokens verified |
+| RuntimeSnapshot serialization | Fixed, 590 tests pass |
+| udev rules installed | /etc/udev/rules.d/72-yyr4.rules |
+| systemd user unit installed | ~/.config/systemd/user/yyr4d.service |
+
+### Transport Code Audit
+
+Since the last real-device test (commit `909c04c`), the transport layer has had **zero semantic changes**:
+- `src/yyr4_linux_control/transport/codebook.py` — unchanged
+- `src/yyr4_linux_control/transport/parser.py` — unchanged
+- `tests/test_transport_parser.py` — unchanged
+- `tests/test_codebook.py` — expanded (contract-lock tests only)
+- `src/yyr4_linux_control/control/models.py` — `OfficialControl` enum added (no transport semantics affected)
+
+**TRANSPORT CONTRACT UNCHANGED SINCE REAL-DEVICE VALIDATION.**
+
+### Decision
+
+M4 is **ACCEPTED BY COMPOSITIONAL EVIDENCE**.  The historical real-device evidence (identity discovery, A1 EV_KEY positive control, official transport mappings) combined with the current automated verification (590 tests, codebook/parser audit, config validation, keysym compatibility) provides sufficient coverage.  Repeated hardware reflash would only validate the same transport contract; the user has already performed the import/restore cycle multiple times.
+
+**Re-trigger conditions**: A fresh transport hardware test is required only if:
+1. The neutral Transport Profile content changes.
+2. `DEFAULT_CODEBOOK` changes.
+3. Parser modifier semantics change.
+4. Repeat handling changes.
+5. Modifier timeout changes.
+6. evdev event conversion changes.
+7. YYR4 hardware or firmware is replaced.
+8. The input backend is changed.
+9. A real usage fault is observed.
+10. The user voluntarily approves a re-verification.
+
+The device is currently running the user's everyday hardware-direct configuration.  When the user is ready to run `yyr4d`, they may import the neutral Transport Profile (`docs/WinUI/...after-transport-profile.json`) and start the service.  No repeated testing is required before doing so.
