@@ -72,9 +72,33 @@ def _emit_action(indent: int, action: Action) -> str:
 # ── TOML string escaping ──────────────────────────────────────────
 
 def _toml_str(s: str) -> str:
-    """Return a TOML basic-string literal for *s*."""
-    escaped = s.replace("\\", "\\\\").replace('"', '\\"')
-    return f'"{escaped}"'
+    """Return a TOML basic-string literal for *s*.
+
+    Handles all required TOML basic-string escapes: \\\", \\\\, \\b, \\t,
+    \\n, \\f, \\r, and \\uXXXX for other control characters.
+    """
+    parts = []
+    for ch in s:
+        cp = ord(ch)
+        if ch == '"':
+            parts.append('\\"')
+        elif ch == "\\":
+            parts.append("\\\\")
+        elif ch == "\b":
+            parts.append("\\b")
+        elif ch == "\t":
+            parts.append("\\t")
+        elif ch == "\n":
+            parts.append("\\n")
+        elif ch == "\f":
+            parts.append("\\f")
+        elif ch == "\r":
+            parts.append("\\r")
+        elif cp < 0x20 or cp == 0x7f:
+            parts.append(f"\\u{cp:04x}")
+        else:
+            parts.append(ch)
+    return f'"{''.join(parts)}"'
 
 
 def _toml_strs(strings: Tuple[str, ...]) -> str:
