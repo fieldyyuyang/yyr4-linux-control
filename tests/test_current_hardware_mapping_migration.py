@@ -359,46 +359,29 @@ class TestCurrentHardwareMappingMigration(unittest.TestCase):
                     "delay", "hotkey", "delay", "hotkey", "delay", "hotkey"]
         self.assertEqual(step_types, expected)
 
-    # ── Negative: no real hardware ──
-
-    def test_no_real_device_access(self):
-        """Verify no tests access /dev/input — the evdev package may be
-        imported by the project's own adapter module, but no real device
-        nodes should be opened."""
-        # Config loading and dry-run never trigger real hardware I/O.
-        # This test exists to document that constraint.
-        pass
+    # no-op: test_no_real_device_access moved to TestRecordingBackendExecution
 
 
 class TestBackendKeyNormalization(unittest.TestCase):
-    """Verify _map_key produces xdotool-compatible keysym names."""
+    """Verify _map_key produces exact X11 keysym names."""
 
     def setUp(self):
         from yyr4_linux_control.execution.desktop import XDoToolDesktopInputBackend
         self.backend = XDoToolDesktopInputBackend.__new__(XDoToolDesktopInputBackend)
 
-    # xdotool modifier aliases — not X11 keysym names but handled by
-    # xdotool internally before calling XStringToKeysym.
-    _XDOTOOL_MODIFIER_ALIASES = {
-        "ctrl", "shift", "alt", "super", "meta", "hyper", "mode_switch",
-    }
-
     def _verify_keysym(self, token):
-        """Check that the mapped value is valid — either a known xdotool
-        modifier alias or an X11 keysym that XStringToKeysym resolves."""
+        """Check that mapped value is a valid X11 keysym via XStringToKeysym."""
         import ctypes, ctypes.util
         x11 = ctypes.cdll.LoadLibrary(ctypes.util.find_library("X11"))
         x11.XStringToKeysym.restype = ctypes.c_ulong
         x11.XStringToKeysym.argtypes = [ctypes.c_char_p]
         mapped = self.backend._map_key(token)
-        if mapped in self._XDOTOOL_MODIFIER_ALIASES:
-            return mapped  # xdotool handles these internally
         ks = x11.XStringToKeysym(mapped.encode())
         self.assertNotEqual(ks, 0,
                             f"{token!r} → {mapped!r} → NoSymbol (xdotool will fail)")
         return mapped
 
-    def test_all_migration_tokens_resolve(self):
+    def test_all_25_migration_tokens_resolve(self):
         tokens = [
             "ESC", "BACKSPACE", "ENTER", "SPACE",
             "LCTRL", "LSHIFT", "LALT",
@@ -412,14 +395,36 @@ class TestBackendKeyNormalization(unittest.TestCase):
         for t in tokens:
             self._verify_keysym(t)
 
-    def test_lctrl_maps_to_ctrl(self):
-        self.assertEqual(self.backend._map_key("LCTRL"), "ctrl")
+    # ── Exact modifier keysym tests ──
 
-    def test_lshift_maps_to_shift(self):
-        self.assertEqual(self.backend._map_key("LSHIFT"), "shift")
+    def test_lctrl_maps_to_control_l(self):
+        self.assertEqual(self.backend._map_key("LCTRL"), "Control_L")
 
-    def test_lalt_maps_to_alt(self):
-        self.assertEqual(self.backend._map_key("LALT"), "alt")
+    def test_lshift_maps_to_shift_l(self):
+        self.assertEqual(self.backend._map_key("LSHIFT"), "Shift_L")
+
+    def test_lalt_maps_to_alt_l(self):
+        self.assertEqual(self.backend._map_key("LALT"), "Alt_L")
+
+    def test_rctrl_maps_to_control_r(self):
+        self.assertEqual(self.backend._map_key("RCTRL"), "Control_R")
+
+    def test_rshift_maps_to_shift_r(self):
+        self.assertEqual(self.backend._map_key("RSHIFT"), "Shift_R")
+
+    def test_ralt_maps_to_alt_r(self):
+        self.assertEqual(self.backend._map_key("RALT"), "Alt_R")
+
+    def test_generic_ctrl_still_control_l(self):
+        self.assertEqual(self.backend._map_key("CTRL"), "Control_L")
+
+    def test_generic_shift_still_shift_l(self):
+        self.assertEqual(self.backend._map_key("SHIFT"), "Shift_L")
+
+    def test_generic_alt_still_alt_l(self):
+        self.assertEqual(self.backend._map_key("ALT"), "Alt_L")
+
+    # ── Named key tests ──
 
     def test_esc_maps_to_escape(self):
         self.assertEqual(self.backend._map_key("ESC"), "Escape")
@@ -433,28 +438,52 @@ class TestBackendKeyNormalization(unittest.TestCase):
     def test_space_maps_correctly(self):
         self.assertEqual(self.backend._map_key("SPACE"), "space")
 
-    def test_delete_maps_correctly(self):
+    def test_delete_home_end_map_correctly(self):
         self.assertEqual(self.backend._map_key("DELETE"), "Delete")
-
-    def test_home_maps_correctly(self):
         self.assertEqual(self.backend._map_key("HOME"), "Home")
-
-    def test_end_maps_correctly(self):
         self.assertEqual(self.backend._map_key("END"), "End")
 
     def test_minus_equal_map_correctly(self):
         self.assertEqual(self.backend._map_key("MINUS"), "minus")
         self.assertEqual(self.backend._map_key("EQUAL"), "equal")
 
-    def test_kp_tokens_map_correctly(self):
+    def test_kp_tokens_preserve_case(self):
         self.assertEqual(self.backend._map_key("KP_Subtract"), "KP_Subtract")
         self.assertEqual(self.backend._map_key("KP_Divide"), "KP_Divide")
         self.assertEqual(self.backend._map_key("KP_Multiply"), "KP_Multiply")
 
-    def test_xf86_tokens_map_correctly(self):
-        self.assertEqual(self.backend._map_key("XF86MonBrightnessDown"), "XF86MonBrightnessDown")
-        self.assertEqual(self.backend._map_key("XF86MonBrightnessUp"), "XF86MonBrightnessUp")
-        self.assertEqual(self.backend._map_key("XF86AudioMute"), "XF86AudioMute")
+    def test_xf86_tokens_preserve_case(self):
+        self.assertEqual(self.backend._map_key("XF86MonBrightnessDown"),
+                         "XF86MonBrightnessDown")
+        self.assertEqual(self.backend._map_key("XF86MonBrightnessUp"),
+                         "XF86MonBrightnessUp")
+        self.assertEqual(self.backend._map_key("XF86AudioMute"),
+                         "XF86AudioMute")
+
+    # ── Negative tests ──
+
+    def test_unknown_multichar_token_rejected(self):
+        from yyr4_linux_control.execution.errors import DesktopInputError
+        with self.assertRaises(DesktopInputError):
+            self.backend._map_key("UNKNOWN_TOKEN")
+
+    def test_unknown_lowercase_multichar_rejected(self):
+        from yyr4_linux_control.execution.errors import DesktopInputError
+        with self.assertRaises(DesktopInputError):
+            self.backend._map_key("nonexistent")
+
+    def test_invalid_keysym_not_silently_passed(self):
+        """A token that looks plausible but is not a real keysym must be rejected."""
+        from yyr4_linux_control.execution.errors import DesktopInputError
+        with self.assertRaises(DesktopInputError):
+            self.backend._map_key("FAKE_KEY_NAME")
+
+    def test_kp_subtract_lowercase_is_handled(self):
+        """Lowercase kp_subtract is in the map, so it resolves correctly."""
+        self.assertEqual(self.backend._map_key("kp_subtract"), "KP_Subtract")
+
+    def test_xf86_lowercase_is_handled(self):
+        self.assertEqual(self.backend._map_key("xf86audiomute"), "XF86AudioMute")
 
 
 class TestRecordingBackendExecution(unittest.TestCase):
@@ -610,6 +639,30 @@ class TestRecordingBackendExecution(unittest.TestCase):
             last_call = engine.desktop_backend.calls[-1]
             self.assertEqual(last_call, expected_keys,
                              f"{ctrl.value}: expected {expected_keys}, got {last_call}")
+
+    def test_no_real_subprocess_or_hardware_access(self):
+        """All 24 controls execute through Recording backend without
+        any real subprocess or hardware access."""
+        from yyr4_linux_control.control.models import OfficialControl, OfficialControlEvent
+        from yyr4_linux_control.control.actions import LayeredActionResolver
+        from yyr4_linux_control.domain.events import ControlPhase
+        import asyncio
+
+        engine = self._make_engine()
+        resolver = LayeredActionResolver(config=self.config)
+
+        for ctrl in OfficialControl:
+            event = OfficialControlEvent(control=ctrl,
+                                         phase=ControlPhase.DOWN, timestamp_ns=0)
+            plan = resolver.resolve(event, self.config.default_profile,
+                                   self.config.initial_layer)
+            result = asyncio.run(engine.execute(plan))
+            self.assertEqual(result.execution_status.name, "SUCCESS")
+
+        self.assertGreater(len(engine.desktop_backend.calls), 0,
+                           "Desktop backend recorded no calls")
+        self.assertEqual(engine.command_runner.call_count, 0,
+                         "Real subprocess was called")
 
 
 # ── Recording/mock backends ──

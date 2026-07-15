@@ -49,7 +49,7 @@ class TestExecutionDesktop(unittest.IsolatedAsyncioTestCase):
         backend = XDoToolDesktopInputBackend(runner)
         await backend.send_hotkey(("CTRL", "C"))
         self.assertEqual(len(runner.calls), 1)
-        self.assertEqual(runner.calls[0], ("xdotool", "key", "--clearmodifiers", "ctrl+c"))
+        self.assertEqual(runner.calls[0], ("xdotool", "key", "--clearmodifiers", "Control_L+c"))
 
     @patch.object(XDoToolDesktopInputBackend, "availability", return_value=True)
     async def test_type_text(self, mock_avail):
