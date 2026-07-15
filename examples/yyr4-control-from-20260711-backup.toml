@@ -1,0 +1,110 @@
+# YYR4 Control Configuration — Migrated from WinUI Backup
+# Backup: docs/WinUI/YYR4-driver-2.0.3-hardware-2.0.1-20260711-before-transport-profile.json
+# SHA-256: c1c0c9aa761815321abfcc7f653883df06452e1091bdb392245f3bb41ef3724a
+#
+# This configuration reproduces the user's current hardware mapping as a schema v2
+# software config. It is designed to run under yyr4d AFTER the YYR4 device has been
+# loaded with the neutral Transport Profile (F13–F24 ± LSHIFT codes).
+#
+# DO NOT deploy to ~/.config/yyr4/config.toml without review.
+# The device is NOT yet running the neutral Transport Profile.
+
+schema_version = 2
+default_profile = "user"
+initial_layer = "general"
+
+[profiles.user.layers.general.controls]
+
+# ── Mechanical Keys (A1–A12) ──
+
+[profiles.user.layers.general.controls.A1]
+action = { type = "hotkey", keys = ["ESC"] }
+
+[profiles.user.layers.general.controls.A2]
+action = { type = "hotkey", keys = ["BACKSPACE"] }
+
+[profiles.user.layers.general.controls.A3]
+action = { type = "hotkey", keys = ["LCTRL", "LSHIFT", "END"] }
+
+[profiles.user.layers.general.controls.A4]
+action = { type = "hotkey", keys = ["LCTRL", "LSHIFT", "HOME"] }
+
+[profiles.user.layers.general.controls.A5]
+action = { type = "hotkey", keys = ["LCTRL", "E"] }
+
+[profiles.user.layers.general.controls.A6]
+action = { type = "macro", steps = [
+  { type = "hotkey", keys = ["LSHIFT", "ENTER"] },
+  { type = "delay", milliseconds = 100 },
+  { type = "hotkey", keys = ["KP_Subtract"] },
+  { type = "delay", milliseconds = 20 },
+  { type = "hotkey", keys = ["KP_Subtract"] },
+  { type = "delay", milliseconds = 20 },
+  { type = "hotkey", keys = ["KP_Subtract"] },
+  { type = "delay", milliseconds = 100 },
+  { type = "hotkey", keys = ["LSHIFT", "ENTER"] },
+  { type = "delay", milliseconds = 20 },
+  { type = "hotkey", keys = ["LSHIFT", "ENTER"] },
+] }
+
+[profiles.user.layers.general.controls.A7]
+action = { type = "hotkey", keys = ["LALT", "D"] }
+
+[profiles.user.layers.general.controls.A8]
+action = { type = "hotkey", keys = ["LSHIFT", "LCTRL", "Z"] }
+
+[profiles.user.layers.general.controls.A9]
+action = { type = "hotkey", keys = ["LCTRL", "C"] }
+
+[profiles.user.layers.general.controls.A10]
+action = { type = "hotkey", keys = ["LCTRL", "V"] }
+
+[profiles.user.layers.general.controls.A11]
+action = { type = "hotkey", keys = ["LSHIFT", "LCTRL", "C"] }
+
+[profiles.user.layers.general.controls.A12]
+action = { type = "hotkey", keys = ["LSHIFT", "LCTRL", "V"] }
+
+# ── Encoder E01 (AL/AP/AR) ──
+
+[profiles.user.layers.general.controls.AL]
+action = { type = "hotkey", keys = ["XF86MonBrightnessDown"] }
+
+[profiles.user.layers.general.controls.AP]
+action = { type = "hotkey", keys = ["LCTRL", "DELETE"] }
+
+[profiles.user.layers.general.controls.AR]
+action = { type = "hotkey", keys = ["XF86MonBrightnessUp"] }
+
+# ── Encoder E02 (BL/BP/BR) ──
+
+[profiles.user.layers.general.controls.BL]
+action = { type = "hotkey", keys = ["KP_Divide"] }
+
+[profiles.user.layers.general.controls.BP]
+action = { type = "hotkey", keys = ["XF86AudioMute"] }
+
+[profiles.user.layers.general.controls.BR]
+action = { type = "hotkey", keys = ["KP_Multiply"] }
+
+# ── Encoder E03 (CL/CP/CR) ──
+
+[profiles.user.layers.general.controls.CL]
+action = { type = "hotkey", keys = ["LEFT"] }
+
+[profiles.user.layers.general.controls.CP]
+action = { type = "hotkey", keys = ["SPACE"] }
+
+[profiles.user.layers.general.controls.CR]
+action = { type = "hotkey", keys = ["RIGHT"] }
+
+# ── Encoder E04 (DL/DP/DR) ──
+
+[profiles.user.layers.general.controls.DL]
+action = { type = "hotkey", keys = ["LCTRL", "MINUS"] }
+
+[profiles.user.layers.general.controls.DP]
+action = { type = "hotkey", keys = ["ENTER"] }
+
+[profiles.user.layers.general.controls.DR]
+action = { type = "hotkey", keys = ["LCTRL", "EQUAL"] }
