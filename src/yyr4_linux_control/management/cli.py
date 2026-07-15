@@ -1,4 +1,5 @@
 import argparse
+import os
 import sys
 import json
 import asyncio
@@ -374,7 +375,7 @@ def cmd_preview(args):
         eprint(f"Configuration file not found: {config_path}")
         sys.exit(EXIT_CONFIG)
 
-    output_path = Path(args.output).resolve()
+    output_path = Path(os.path.abspath(args.output))
     try:
         doc = build_document(config_path)
         html_content = generate_html(doc, title=args.title)
@@ -382,7 +383,8 @@ def cmd_preview(args):
     except FileExistsError as e:
         eprint(str(e))
         sys.exit(EXIT_CONFIG)
-    except (ValueError, IsADirectoryError) as e:
+    except (ValueError, IsADirectoryError, FileNotFoundError,
+            NotADirectoryError) as e:
         eprint(str(e))
         sys.exit(EXIT_INTERNAL)
     except Exception as e:

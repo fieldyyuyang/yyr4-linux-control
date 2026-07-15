@@ -164,12 +164,22 @@ COMPLETE
 NEXT: Milestone 5 — Optional graphical configurator
 
 ## Milestone 5 — Optional graphical configurator
-包括：
-- 官方控件布局；
-- 动作编辑；
-- 层和预设管理；
-- daemon状态；
-- 日志与错误展示。
+
+状态：IN PROGRESS
+
+### M5.1 — Configurator Core and Read-Only Graphical Preview
+状态：COMPLETE（2026-07-15）
+提交：ec8ffac
+
+交付物：
+- immutable View Model（frozen dataclass）
+- 只读自包含HTML预览（无JavaScript，无外部资源）
+- `yyr4ctl preview` CLI入口
+- 输出安全（符号链接拒绝、同文件检测、原子写入）
+- 全部11种Action类型展示
+- 文档：docs/graphical-configurator.md
+
+NEXT: M5.2 — Draft Editing, Validation, Diff Preview, and Atomic Save
 
 GUI不直接访问设备，应调用daemon/API。
 

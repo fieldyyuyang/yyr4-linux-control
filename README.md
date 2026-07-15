@@ -6,13 +6,19 @@
 `yyr4-linux-control` is a professional, context-aware control surface platform tailored for Debian 13 and modern Linux desktops. It maximizes the capabilities of the YYR4 programmable keypad (12 mechanical keys, 4 encoders) by providing context-aware app switching, multi-layer mapping, macros, and deep system integration.
 
 ## Current State
-**[Status: Milestone 1, 2, 3 & 4 Completed]**
-Device research, transport code auditing, safe device discovery, evdev input adapter logic, parser core, and validation infrastructure are complete. Control-to-Action runtime, execution engine, management CLI, daemon, layered configuration domain, active layer runtime switching, and Linux integration are complete. M4 accepted by risk-based compositional evidence (historical real-device + configuration contract + automated software + host); fresh 24-control physical end-to-end validation is explicitly deferred by user.
+**[Status: Milestone 1, 2, 3 & 4 Completed — Milestone 5 In Progress]**
+Device research, transport code auditing, safe device discovery, evdev input adapter logic, parser core, and validation infrastructure are complete. Control-to-Action runtime, execution engine, management CLI, daemon, layered configuration domain, active layer runtime switching, and Linux integration are complete. M4 accepted by risk-based compositional evidence. M5.1 (read-only graphical preview) is complete.
 
 **Current development target:**
-**Milestone 5 — Optional graphical configurator**
+**Milestone 5.2 — Draft Editing, Validation, Diff Preview, and Atomic Save**
 
-The project currently has a functioning daemon and a local management CLI (`yyr4ctl`). The Web UI is not yet developed.
+The project currently has a functioning daemon and a local management CLI (`yyr4ctl`). A read-only HTML preview is available:
+
+```bash
+yyr4ctl preview --config examples/yyr4-control-from-20260711-backup.toml --output /tmp/yyr4-preview.html
+```
+
+The preview is self-contained (no external resources, no JavaScript) and can be opened with any browser via `file://`. It does NOT modify configurations, start the daemon, or access hardware.
 
 ## Core Principles
 * **Web UI First**: All user interactions are handled via a local Web UI.
