@@ -7,7 +7,7 @@
 
 ## Current State
 **[Status: Milestone 1, 2, 3 & 4 Completed]**
-Device research, transport code auditing, safe device discovery, evdev input adapter logic, parser core, and validation infrastructure are complete. Control-to-Action runtime, execution engine, management CLI, daemon, layered configuration domain, active layer runtime switching, and Linux integration are complete. M4 accepted by compositional evidence (historical real-device + current automation).
+Device research, transport code auditing, safe device discovery, evdev input adapter logic, parser core, and validation infrastructure are complete. Control-to-Action runtime, execution engine, management CLI, daemon, layered configuration domain, active layer runtime switching, and Linux integration are complete. M4 accepted by risk-based compositional evidence (historical real-device + configuration contract + automated software + host); fresh 24-control physical end-to-end validation is explicitly deferred by user.
 
 **Current development target:**
 **Milestone 5 — Optional graphical configurator**

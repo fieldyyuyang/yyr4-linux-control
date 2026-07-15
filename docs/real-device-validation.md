@@ -80,32 +80,60 @@ Currently, users *do not* need to switch to the Transport Profile. Implementatio
 ## Compositional Acceptance — Milestone 4 Closure
 
 **Date**: 2026-07-15
-**Basis**: Combined historical real-device evidence with current software and host verification.
+**Acceptance type**: Risk-based compositional evidence
+**Basis**: M4 is accepted by combining multiple independent evidence classes linked through a stable Transport contract.  The acceptance explicitly acknowledges that a fresh 24-control end-to-end hardware event capture (V018) has NOT been performed and is deferred by user decision.
 
-### Historical Real-Device Evidence (July 13, 2026)
+### 1. Confirmed Real-Device Evidence
+
+Evidence obtained from actual YYR4 hardware connected to the host, using read-only tools or user observation (not automated test fixtures):
 
 | Evidence | Status | Source |
 |---|---|---|
-| Device discovery & identity | VERIFIED | `.local/hardware-validation/identity-permission-*.json` (d60cb37) |
-| Device role classification | VERIFIED | `.local/hardware-validation/identity-permission-*.json` (026a844) |
-| Node read permissions | VERIFIED | `.local/hardware-validation/identity-permission-*.json` (d60cb37) |
-| Daily Profile A1 EV_KEY positive control | VERIFIED | `.local/hardware-validation/daily-evkey-visible-*.stdout` (cacfa19) — 1 raw EV_KEY event observed |
-| Official 24-item transport mapping | VERIFIED | V001-V005 in validation-ledger.md — official vendor configuration evidence |
-| 24-op end-to-end CLI | NOT_YET_VERIFIED | V018 — deferred |
+| Device discovery & identity (VID 239a, PID 80f4) | VERIFIED | `.local/hardware-validation/identity-permission-*.json` (d60cb37) |
+| Device role classification (keyboard+mouse) | VERIFIED | `.local/hardware-validation/identity-permission-*.json` (026a844) |
+| Node read permissions (user-level ACL) | VERIFIED | `.local/hardware-validation/identity-permission-*.json` (d60cb37) |
+| Daily Profile A1 EV_KEY positive control | VERIFIED | `.local/hardware-validation/daily-evkey-visible-*.stdout` (cacfa19) — 1 raw EV_KEY event observed; confirms evdev read path |
+| User attestation: neutral profile import/restore | USER ATTESTATION | User has confirmed performing import/restore cycles multiple times historically |
 
-### Current Software Evidence
+**Not confirmed by real-device capture**: Full 24-op end-to-end CLI verification (V018), repeat/Shift-release behaviour on real hardware (validated only via automated tests).
+
+### 2. Configuration and Contract Evidence
+
+Static verification that configurations, codebooks, and profiles are structurally correct and mutually consistent (not a substitute for real-device event capture):
 
 | Item | Status |
 |---|---|
-| DEFAULT_CODEBOOK: 24 one-to-one mappings | 34 tests pass |
-| Transport Parser: shift/repeat/timeout/reset | 21 tests pass |
+| Neutral Transport Profile: 24 items (F13–F24 ± LSHIFT) | Structurally verified |
+| DEFAULT_CODEBOOK: 24 one-to-one mappings | 34 automated tests pass |
 | Neutral Profile vs Codebook consistency | 24/24 match (verified 2026-07-15) |
+| WinUI encoder storage order (CCW–CW–Press) | Verified by reference to WinUI JSON structure |
+| Official vendor transport mapping (V001–V005) | VERIFIED — official configuration evidence |
+
+### 3. Current Software and Host Evidence
+
+Evidence from automated tests, static validation, and host deployment verification (no hardware access):
+
+| Item | Status |
+|---|---|
+| Transport Parser: shift/repeat/timeout/reset | 21 automated tests pass |
 | Live config deployed (24 OfficialControls) | validate + 24 dry-run pass |
 | Recording Backend execution (24 controls) | All SUCCESS |
-| X11 keysym compatibility | All 25 tokens verified |
+| X11 keysym compatibility (all 25 tokens) | Verified via XStringToKeysym |
 | RuntimeSnapshot serialization | Fixed, 590 tests pass |
 | udev rules installed | /etc/udev/rules.d/72-yyr4.rules |
 | systemd user unit installed | ~/.config/systemd/user/yyr4d.service |
+| Git, uv, worktree consistency | HEAD = worktree = uv install |
+
+### 4. Deferred Evidence
+
+Explicitly NOT performed and NOT required for M4 closure:
+
+| Item | Status | Reason |
+|---|---|---|
+| Fresh 24-control real-device event capture | DEFERRED (V018) | Requires device in neutral transport mode; user elected not to repeat reflash cycle |
+| Fresh 24-control daemon-to-desktop end-to-end test | DEFERRED | Requires daemon running with neutral transport hardware |
+| Repeat behaviour on real hardware | DEFERRED | Verified by automated tests only |
+| Shift release order on real hardware | DEFERRED | Verified by automated tests only |
 
 ### Transport Code Audit
 
@@ -120,7 +148,9 @@ Since the last real-device test (commit `909c04c`), the transport layer has had 
 
 ### Decision
 
-M4 is **ACCEPTED BY COMPOSITIONAL EVIDENCE**.  The historical real-device evidence (identity discovery, A1 EV_KEY positive control, official transport mappings) combined with the current automated verification (590 tests, codebook/parser audit, config validation, keysym compatibility) provides sufficient coverage.  Repeated hardware reflash would only validate the same transport contract; the user has already performed the import/restore cycle multiple times.
+M4 is **ACCEPTED BY RISK-BASED COMPOSITIONAL EVIDENCE**.  The combination of confirmed real-device evidence (identity, permissions, A1 EV_KEY visibility), configuration and contract evidence (codebook, neutral profile consistency), and current software/host evidence (590 tests, config deployment, keysym verification) provides sufficient assurance that the Linux integration is functionally correct.  A repeated hardware reflash would only re-verify the same stable transport contract.
+
+**The fresh 24-control end-to-end hardware validation (V018) remains explicitly deferred.**  This is a known, documented residual testing gap — not a blocker for M4.
 
 **Re-trigger conditions**: A fresh transport hardware test is required only if:
 1. The neutral Transport Profile content changes.

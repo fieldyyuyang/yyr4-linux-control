@@ -130,9 +130,9 @@ COMPLETE
 状态：
 COMPLETE
 
-验收方式：组合证据 — 历史真实设备验证 + 当前自动化与主机验证（见 docs/real-device-validation.md § Compositional Acceptance）
+验收方式：基于风险的组合证据验收 — 历史真实设备证据 + 配置/契约证据 + 当前自动化与主机证据（见 docs/real-device-validation.md § Compositional Acceptance）；新鲜24控制实体端到端验证（V018）已由用户明确延后。
 验收日期：2026-07-15
-相关提交：4252c9f
+相关提交：02120b2b
 
 已完成交付物：
 - 精确udev uaccess规则；
@@ -145,11 +145,21 @@ COMPLETE
 - X11 keysym兼容性验证；
 - RuntimeSnapshot序列化修复。
 
-未要求重复执行的操作（已由历史证据覆盖）：
-- 重新导入中性Transport Profile（用户历史多次执行）；
-- 重复24项物理操作测试（V001-V005已VERIFIED，传输代码未变化）。
+残余验证缺口（显式延后，非M4阻断）：
+- 24项物理操作新鲜端到端实体事件捕获（V018）— 需要设备处于中性传输模式；
+- 用户已多次执行过导入/恢复流程，本轮选择不重复高成本操作。
 
-下一触发条件：仅当Transport契约、Codebook、Parser语义或硬件配置发生确定变化时才重新要求硬件测试。
+重新触发条件：仅当以下条件之一成立：
+1. 中性Transport Profile内容改变；
+2. DEFAULT_CODEBOOK改变；
+3. Transport Parser修饰键语义改变；
+4. repeat处理改变；
+5. modifier timeout改变；
+6. evdev事件转换改变；
+7. YYR4硬件或固件改变；
+8. Linux输入后端改变；
+9. 真实运行发现故障；
+10. 用户主动批准重新测试。
 
 NEXT: Milestone 5 — Optional graphical configurator
 

@@ -11,6 +11,8 @@ To avoid endlessly re-testing the hardware on every hypothesis, evidence is clas
 *   **Versioned parser fixture evidence**: Offline JSON files capturing raw events used for automated unit tests.
 *   **Automated regression evidence**: Python `unittest` suites ensuring software continually meets Parser, Discovery, Identity, Permission, and Pipeline contracts.
 *   **Current maintained CLI real-device evidence**: Proves the end-to-end behavior of the formal CLI on specific commits.
+*   **Configuration / contract evidence**: Static verification that configurations, codebooks, and profiles are structurally correct and mutually consistent (not a substitute for real-device event capture).
+*   **Risk-based compositional evidence**: Acceptance of a milestone by combining multiple independent evidence classes linked through a stable Transport contract; explicitly notes any deferred hardware testing.
 
 ## 2. Official physical naming
 
@@ -52,8 +54,8 @@ All user-facing logs and documentation MUST use the official names.
 | V015 | No-action Daily run | Daily profile run without user interaction | INVALID_TEST | Current maintained CLI real-device evidence | `.local/hardware-validation/daily-evkey-positive-*` | cacfa19 | Originally mislabeled as failed positive control. User did not press keys. |
 | V016 | 1st Transport Probe AttributeError | Initial observe_probe crashed on diagnostics | INVALID_TEST | Current maintained CLI real-device evidence | `.local/hardware-validation/*` | d60cb37 | Software bug. |
 | V017 | Fixed Transport EV_KEY run | Transport profile emitted 0 EV_KEY events | PARTIAL | Current maintained CLI real-device evidence | `.local/hardware-validation/*` | 909c04c | Could mean Transport doesn't use EV_KEY, or other layers are filtering. |
-| V018 | Full 24-op CLI verification | Test all 24 physical operations end-to-end | NOT_YET_VERIFIED | Current maintained CLI real-device evidence | N/A | N/A | Requires resolution of Transport EV_KEY absence (V017). |
-| V019 | Compositional M4 acceptance | Combined historical real-device evidence with current software verification | VERIFIED | Compositional (historical hardware + current automation) | V001-V005, V014 + 590 automated tests + codebook/parser audit | 4252c9f | Device currently in hardware-direct mode; repeated reflash not required. See compositional acceptance in real-device-validation.md. |
+| V018 | Full 24-op CLI verification | Test all 24 physical operations end-to-end | NOT_YET_VERIFIED | Current maintained CLI real-device evidence | N/A | N/A | Deferred: requires device in neutral transport mode; user elected not to repeat reflash cycle. |
+| V019 | Risk-based M4 acceptance | Compose historical real-device + configuration contract + automated + host evidence | VERIFIED | Risk-based compositional evidence | V001-V005, V009-V014, 590 tests, codebook/parser unchanged since 909c04c, live config deployed, keysym verified | 4252c9f | Fresh 24-control hardware event capture (V018) remains explicitly deferred. See real-device-validation.md. |
 
 ## 4. Retest triggers and rules
 
