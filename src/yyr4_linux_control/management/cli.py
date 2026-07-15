@@ -730,7 +730,7 @@ def main():
             if "rename" in name:
                 dp.add_argument("--new-layer-id", required=True)
             elif "initial" in name:
-                dp.add_argument("--layer-id", required=True)
+                pass  # already have --layer-id
 
     d_validate = draft_subs.add_parser("validate")
     d_validate.add_argument("--draft", required=True)
