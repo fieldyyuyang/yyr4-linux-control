@@ -108,5 +108,58 @@ class TestManagementContext(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(resp.ok)
         self.assertEqual(resp.error["code"], "INVALID_PARAM")
 
+    async def test_status_json_serialization(self):
+        """Regression: status must not leak ProfileId/LayerId domain objects into JSON."""
+        snap = self.runtime.snapshot()
+        d = snap.to_dict()
+        # This was the original fault: "Object of type ProfileId is not JSON serializable"
+        s = json.dumps(d)
+        parsed = json.loads(s)
+        self.assertIsInstance(parsed["selected_profile"], str)
+        self.assertIsInstance(parsed["active_layer"], str)
+        self.assertEqual(parsed["context_revision"], 0)
+
+    async def test_status_contains_all_context_fields(self):
+        """status response must include selected_profile, active_layer, context_revision."""
+        snap = self.runtime.snapshot()
+        d = snap.to_dict()
+        self.assertIn("selected_profile", d)
+        self.assertIn("active_layer", d)
+        self.assertIn("context_revision", d)
+
+    async def test_status_context_fields_preserved_after_layer_switch(self):
+        """After set-layer, status must reflect the new layer."""
+        await self.client.send_request("set-layer", {"layer": "layer_1"})
+        snap = self.runtime.snapshot()
+        d = snap.to_dict()
+        self.assertEqual(d["active_layer"], "layer_1")
+        self.assertEqual(d["selected_profile"], "default")
+
+    async def test_status_json_serialization_after_context_change(self):
+        """After context changes, status must still be JSON-serializable."""
+        await self.client.send_request("set-layer", {"layer": "layer_1"})
+        snap = self.runtime.snapshot()
+        d = snap.to_dict()
+        s = json.dumps(d)
+        parsed = json.loads(s)
+        self.assertEqual(parsed["active_layer"], "layer_1")
+        self.assertEqual(parsed["context_revision"], 1)
+
+    async def test_status_json_serialization_without_context(self):
+        """status must be JSON-serializable even when context is not initialized."""
+        saved = self.runtime._context
+        self.runtime._context = None
+        try:
+            snap = self.runtime.snapshot()
+            d = snap.to_dict()
+            s = json.dumps(d)
+            parsed = json.loads(s)
+            self.assertEqual(parsed["selected_profile"], "")
+            self.assertEqual(parsed["active_layer"], "")
+            self.assertEqual(parsed["context_revision"], 0)
+        finally:
+            self.runtime._context = saved
+
+
 if __name__ == '__main__':
     unittest.main()
