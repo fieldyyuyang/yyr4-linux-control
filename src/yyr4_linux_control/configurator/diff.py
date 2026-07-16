@@ -185,75 +185,71 @@ def unified_diff(base_text: str, draft_text: str,
 
 
 def diff_draft(draft) -> ConfigDiff:
-    """Compute semantic differences using mutation intent for rename detection.
-
-    Uses ConfigDraft._mutation_records to replace add+remove pairs
-    with explicit rename changes when the draft's rename methods were called.
-    Falls back to basic diff_configs for standalone config comparison.
-    """
-    from yyr4_linux_control.configurator.draft import ConfigDraft
-
-    result = diff_configs(draft.base_config, draft.working_config)
+    """Compute semantic differences using mutation intent for rename detection."""
+    from copy import deepcopy
+    from yyr4_linux_control.control.models import ProfileId, LayerId
 
     records = getattr(draft, '_mutation_records', [])
-    if not records:
-        return result
 
-    # Build a set of rename paths for quick lookup
-    renames = {}
+    # Collect rename records to emit directly
+    direct_renames = []
     for rec in records:
-        if rec["kind"] in ("profile_renamed", "layer_renamed"):
-            key = (rec["kind"], rec["before"])  # key by old name for matching removed items
-            renames[key] = rec
+        if rec['kind'] == 'profile_renamed':
+            direct_renames.append(ProfileDiff(
+                path=rec['path'], kind='profile_renamed',
+                before_summary=rec['before'], after_summary=rec['after'],
+                risk='MEDIUM',
+            ))
+        elif rec['kind'] == 'layer_renamed':
+            direct_renames.append(LayerDiff(
+                path=rec['path'], kind='layer_renamed',
+                before_summary=rec['before'], after_summary=rec['after'],
+                risk='MEDIUM',
+            ))
 
-    if not renames:
-        return result
+    # Align base config to match renamed profiles so layer comparison works
+    aligned_base = deepcopy(draft.base_config)
+    for rec in records:
+        if rec['kind'] == 'profile_renamed':
+            old_pid = ProfileId(rec['before'])
+            new_pid = ProfileId(rec['after'])
+            if old_pid in aligned_base.profiles:
+                prof = aligned_base.profiles.pop(old_pid)
+                aligned_base.profiles[new_pid] = prof
+            if aligned_base.default_profile == old_pid:
+                aligned_base = type(aligned_base)(
+                    schema_version=aligned_base.schema_version,
+                    default_profile=new_pid,
+                    initial_layer=aligned_base.initial_layer,
+                    profiles=aligned_base.profiles,
+                )
 
-    # Replace add+remove pairs with rename records
-    new_changes = []
-    consumed = set()
+    result = diff_configs(aligned_base, draft.working_config)
 
-    for i, c in enumerate(result.changes):
-        if i in consumed:
-            continue
+    # Filter out add/remove that correspond to renames
+    rename_afters = set()
+    for rec in records:
+        if rec['kind'] in ('profile_renamed', 'layer_renamed'):
+            rename_afters.add(rec['after'])
 
-        if c.kind in ("profile_removed", "layer_removed"):
-            parts = c.path.rsplit(".", 1)
-            old_name = parts[-1] if len(parts) > 1 else c.path
-            rkind = "profile_renamed" if c.kind == "profile_removed" else "layer_renamed"
-            a_kind = "profile_added" if c.kind == "profile_removed" else "layer_added"
-            rename_key = (rkind, old_name)
-            if rename_key in renames:
-                rec = renames[rename_key]
-                for j, c2 in enumerate(result.changes):
-                    if j in consumed or j == i:
-                        continue
-                    if c2.kind == a_kind:
-                        parts2 = c2.path.rsplit(".", 1)
-                        new_name = parts2[-1] if len(parts2) > 1 else c2.path
-                        if new_name == rec["after"]:
-                            DiffCls = ProfileDiff if rkind == "profile_renamed" else LayerDiff
-                            new_changes.append(DiffCls(
-                                path=rec["path"],
-                                kind=rkind,
-                                before_summary=rec["before"],
-                                after_summary=rec["after"],
-                                risk="MEDIUM",
-                            ))
-                            consumed.add(i)
-                            consumed.add(j)
-                            break
-                else:
-                    new_changes.append(c)
-            else:
-                new_changes.append(c)
+    filtered = []
+    for c in result.changes:
+        if c.kind in ('profile_added', 'layer_added', 'profile_removed', 'layer_removed'):
+            parts = c.path.rsplit('.', 1)
+            name = parts[-1] if len(parts) > 1 else c.path
+            if name in rename_afters:
+                continue
+            # Also filter by old name
+            skip = False
+            for rec in records:
+                if rec.get('before') == name and rec['kind'].startswith(c.kind.split('_')[0] + '_renamed'):
+                    skip = True; break
+            if skip:
+                continue
+        filtered.append(c)
 
-        else:
-            new_changes.append(c)
-
-    result.changes = new_changes
+    result.changes = direct_renames + filtered
     return result
-
 
 # ── Sub-control diff helpers ──────────────────────────────────────
 
