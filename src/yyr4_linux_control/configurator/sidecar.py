@@ -11,6 +11,8 @@ _METADATA_VERSION = 1
 
 def read_sidecar(draft_path: Path) -> dict:
     sp = _sidecar_path(draft_path)
+    if sp.is_symlink():
+        raise OSError(f"Sidecar is a symlink, rejected for safety: {sp}")
     if not sp.is_file():
         raise FileNotFoundError(f"Sidecar not found: {sp}")
     return json.loads(sp.read_text("utf-8"))

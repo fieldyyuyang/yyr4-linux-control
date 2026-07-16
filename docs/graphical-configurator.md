@@ -17,6 +17,8 @@ files.
 ## M5.1 Delivered Scope
 
 **Status**: COMPLETE (2026-07-15)
+**Final commit**: `b3e4db82817d6f2de24c48143bdac9c2472d17e4`
+**Test baseline**: 662 (including 20 writer safety tests)
 
 M5.1 delivers the configurator foundation:
 
@@ -30,8 +32,8 @@ M5.1 delivers the configurator foundation:
 | Macro step expansion (recursive, depth-limited) | ✓ |
 | 24-control layout (buttons + encoders L/P/R) | ✓ |
 | HTML escaping, no external resources | ✓ |
-| 642 automated tests | ✓ |
-| 30 writer safety tests | ✓ |
+| 662 automated tests | ✓ |
+| 20 writer safety tests | ✓ |
 | Config editing | ✗ (M5.2) |
 | Save / Apply | ✗ (M5.2) |
 | Diff preview | ✗ (M5.2) |
@@ -139,11 +141,25 @@ Rules:
 - Structured details (like Command argv) are not rendered in the current HTML output.
 - No diff preview between configurations.
 
-## M5.2 (Planned)
+## M5.2 — Draft Editing, Validation, Diff, and Safe Save
 
-Draft Editing, Validation, Diff Preview, and Atomic Save:
-- Interactive form-based control/action editor.
-- Real-time validation with inline error display.
-- Diff preview before save.
-- Atomic save with rollback to previous version.
-- Profile and Layer creation/management.
+**Status**: COMPLETE
+**Implementation commits**: `e870e940`, `c50a5d99`, `8384ab5c`, `b0d18204`
+
+M5.2 adds the complete configuration editing domain layer with safe persistence.
+See the Architecture section below for the updated diagram.
+
+### Action Spec
+Bidirectional JSON ↔ Action: `parse_spec()` / `action_to_spec()`. All 11 types, precise error paths, macro depth limit 10.
+
+### Draft CLI — 14 Commands
+create, set-action, clear-action, add-profile, rename-profile, remove-profile, set-default-profile, add-layer, rename-layer, remove-layer, set-initial-layer, validate, diff, save.
+
+### Layer Order and Canonical TOML
+NextLayer/PreviousLayer: `general → layer_1 → ... → layer_8`. Serializer matches this. Deterministic byte-identical TOML output.
+
+### Semantic Diff
+Kinds: added, removed, changed, mapped, unmapped. Plus default/initial change tracking. Risk: LOW/MEDIUM/HIGH.
+
+### Safe Save and Rollback
+No-replace new targets (os.link), dual-SHA verification for existing, O_EXCL backups, atomic restore.

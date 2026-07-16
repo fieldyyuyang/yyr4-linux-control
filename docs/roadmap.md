@@ -169,7 +169,7 @@ NEXT: Milestone 5 — Optional graphical configurator
 
 ### M5.1 — Configurator Core and Read-Only Graphical Preview
 状态：COMPLETE（2026-07-15）
-提交：ec8ffac
+最终提交：b3e4db82817d6f2de24c48143bdac9c2472d17e4
 
 交付物：
 - immutable View Model（frozen dataclass）
@@ -177,9 +177,24 @@ NEXT: Milestone 5 — Optional graphical configurator
 - `yyr4ctl preview` CLI入口
 - 输出安全（符号链接拒绝、同文件检测、原子写入）
 - 全部11种Action类型展示
-- 文档：docs/graphical-configurator.md
+- 测试：662
 
-NEXT: M5.2 — Draft Editing, Validation, Diff Preview, and Atomic Save
+### M5.2 — Draft Editing, Validation, Diff, and Safe Save
+状态：COMPLETE
+实现提交：e870e940, c50a5d99, 8384ab5c, b0d18204
+
+交付物：
+- Action Spec（JSON ↔ Action，双向，11类型）
+- ConfigDraft（base/working隔离，Profile/Layer/Control操作）
+- 确定性canonical TOML Serializer
+- 14个Draft CLI子命令
+- Semantic Diff（added/removed/changed/mapped/unmapped，risk分类）
+- 安全保存（no-replace新文件，双SHA复核，O_EXCL备份）
+- rollback（restore_backup）
+- Draft Sidecar元数据
+- 测试：784+
+
+NEXT: M5.3 — Interactive Local Graphical Editor and Draft Review Workflow
 
 GUI不直接访问设备，应调用daemon/API。
 

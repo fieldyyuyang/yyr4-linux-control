@@ -6,19 +6,31 @@
 `yyr4-linux-control` is a professional, context-aware control surface platform tailored for Debian 13 and modern Linux desktops. It maximizes the capabilities of the YYR4 programmable keypad (12 mechanical keys, 4 encoders) by providing context-aware app switching, multi-layer mapping, macros, and deep system integration.
 
 ## Current State
-**[Status: Milestone 1, 2, 3 & 4 Completed — Milestone 5 In Progress]**
-Device research, transport code auditing, safe device discovery, evdev input adapter logic, parser core, and validation infrastructure are complete. Control-to-Action runtime, execution engine, management CLI, daemon, layered configuration domain, active layer runtime switching, and Linux integration are complete. M4 accepted by risk-based compositional evidence. M5.1 (read-only graphical preview) is complete.
+**[Status: Milestone 1, 2, 3, 4, 5.1 & 5.2 Completed — Milestone 5.3 Next]**
+
+M5.2 is complete: Draft editing domain layer, Action Spec (JSON), 14 Draft CLI commands, deterministic serializer, semantic diff, safe atomic save with rollback, and sidecar metadata.
 
 **Current development target:**
-**Milestone 5.2 — Draft Editing, Validation, Diff Preview, and Atomic Save**
+**Milestone 5.3 — Interactive Local Graphical Editor and Draft Review Workflow**
 
-The project currently has a functioning daemon and a local management CLI (`yyr4ctl`). A read-only HTML preview is available:
+### Quick examples
 
+**Read-only preview:**
 ```bash
 yyr4ctl preview --config examples/yyr4-control-from-20260711-backup.toml --output /tmp/yyr4-preview.html
 ```
 
-The preview is self-contained (no external resources, no JavaScript) and can be opened with any browser via `file://`. It does NOT modify configurations, start the daemon, or access hardware.
+**Draft editing workflow (runs entirely in /tmp, never touches real config):**
+```bash
+yyr4ctl draft create --config examples/yyr4-control-from-20260711-backup.toml --output /tmp/draft.toml
+echo '{"type":"debug_log","message":"hello"}' > /tmp/action.json
+yyr4ctl draft set-action --draft /tmp/draft.toml --profile user --layer general --control A1 --action-json /tmp/action.json
+yyr4ctl draft validate --draft /tmp/draft.toml
+yyr4ctl draft diff --draft /tmp/draft.toml --format unified
+yyr4ctl draft save --draft /tmp/draft.toml --target /tmp/saved.toml --backup-dir /tmp/backups
+```
+
+The preview is self-contained (no external resources, no JavaScript). The Draft workflow runs offline, never starts the daemon, never accesses hardware.
 
 ## Core Principles
 * **Web UI First**: All user interactions are handled via a local Web UI.
