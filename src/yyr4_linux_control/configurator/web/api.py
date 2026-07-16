@@ -264,10 +264,10 @@ def handle_validate(session: EditorSession, _query: dict = None) -> dict:
 
 
 def handle_diff(session: EditorSession, _query: dict = None) -> dict:
-    from yyr4_linux_control.configurator.serializer import serialize as _ser
+    from yyr4_linux_control.configurator.diff import diff_draft
     session.touch()
 
-    diff_result = diff_configs(session.draft.base_config, session.draft.working_config)
+    diff_result = diff_draft(session.draft)
     changes = []
     for c in diff_result.changes:
         changes.append({

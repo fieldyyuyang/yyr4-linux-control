@@ -184,6 +184,77 @@ def unified_diff(base_text: str, draft_text: str,
     return "".join(diff)
 
 
+def diff_draft(draft) -> ConfigDiff:
+    """Compute semantic differences using mutation intent for rename detection.
+
+    Uses ConfigDraft._mutation_records to replace add+remove pairs
+    with explicit rename changes when the draft's rename methods were called.
+    Falls back to basic diff_configs for standalone config comparison.
+    """
+    from yyr4_linux_control.configurator.draft import ConfigDraft
+
+    result = diff_configs(draft.base_config, draft.working_config)
+
+    records = getattr(draft, '_mutation_records', [])
+    if not records:
+        return result
+
+    # Build a set of rename paths for quick lookup
+    renames = {}
+    for rec in records:
+        if rec["kind"] in ("profile_renamed", "layer_renamed"):
+            key = (rec["kind"], rec["before"])  # key by old name for matching removed items
+            renames[key] = rec
+
+    if not renames:
+        return result
+
+    # Replace add+remove pairs with rename records
+    new_changes = []
+    consumed = set()
+
+    for i, c in enumerate(result.changes):
+        if i in consumed:
+            continue
+
+        if c.kind in ("profile_removed", "layer_removed"):
+            parts = c.path.rsplit(".", 1)
+            old_name = parts[-1] if len(parts) > 1 else c.path
+            rkind = "profile_renamed" if c.kind == "profile_removed" else "layer_renamed"
+            a_kind = "profile_added" if c.kind == "profile_removed" else "layer_added"
+            rename_key = (rkind, old_name)
+            if rename_key in renames:
+                rec = renames[rename_key]
+                for j, c2 in enumerate(result.changes):
+                    if j in consumed or j == i:
+                        continue
+                    if c2.kind == a_kind:
+                        parts2 = c2.path.rsplit(".", 1)
+                        new_name = parts2[-1] if len(parts2) > 1 else c2.path
+                        if new_name == rec["after"]:
+                            DiffCls = ProfileDiff if rkind == "profile_renamed" else LayerDiff
+                            new_changes.append(DiffCls(
+                                path=rec["path"],
+                                kind=rkind,
+                                before_summary=rec["before"],
+                                after_summary=rec["after"],
+                                risk="MEDIUM",
+                            ))
+                            consumed.add(i)
+                            consumed.add(j)
+                            break
+                else:
+                    new_changes.append(c)
+            else:
+                new_changes.append(c)
+
+        else:
+            new_changes.append(c)
+
+    result.changes = new_changes
+    return result
+
+
 # ── Sub-control diff helpers ──────────────────────────────────────
 
 def _sub_control_diffs(cpath: str, b_act, d_act) -> list:

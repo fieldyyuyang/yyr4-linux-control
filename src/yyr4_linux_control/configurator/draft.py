@@ -67,6 +67,8 @@ class ConfigDraft:
         self._dirty = False
         self._mutation_count = 0
         self._diagnostics: List[DraftDiagnostic] = []
+        # Mutation records for intent-preserving diff (rename tracking)
+        self._mutation_records: List[dict] = []
 
     @property
     def dirty(self) -> bool:
@@ -153,6 +155,12 @@ class ConfigDraft:
             initial_layer=wc.initial_layer,
             profiles=new_profiles,
         )
+        self._mutation_records.append({
+            "kind": "profile_renamed",
+            "path": f"profiles.{old_id}",
+            "before": old_id,
+            "after": new_id,
+        })
         self._mark_dirty()
         return DraftMutationResult(True)
 
@@ -288,6 +296,12 @@ class ConfigDraft:
             initial_layer=new_initial,
             profiles=new_profiles,
         )
+        self._mutation_records.append({
+            "kind": "layer_renamed",
+            "path": f"profiles.{profile_id}.layers.{old_lid}",
+            "before": old_lid,
+            "after": new_lid,
+        })
         self._mark_dirty()
         return DraftMutationResult(True)
 

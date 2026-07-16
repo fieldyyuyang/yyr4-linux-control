@@ -55,9 +55,37 @@ class TestDiff(unittest.TestCase):
         draft.add_profile("gaming")
         draft.set_default_profile("gaming")
         draft.rename_profile("user", "legacy")
+        # Standalone config compare: add+remove
         d = diff_configs(self.base, draft.working_config)
         renamed = [c for c in d.changes if c.kind in ("profile_added", "profile_removed")]
         self.assertGreaterEqual(len(renamed), 1)
+
+    def test_profile_renamed_intent(self):
+        """diff_draft detects rename from mutation records."""
+        from yyr4_linux_control.configurator.diff import diff_draft
+        draft = self._draft()
+        draft.add_profile("gaming")
+        draft.set_default_profile("gaming")
+        draft.rename_profile("user", "legacy")
+        d = diff_draft(draft)
+        renamed = [c for c in d.changes if c.kind == "profile_renamed"]
+        self.assertGreaterEqual(len(renamed), 1)
+        self.assertEqual(renamed[0].kind, "profile_renamed")
+        self.assertIn("user", renamed[0].before_summary)
+        self.assertIn("legacy", renamed[0].after_summary)
+
+    def test_layer_renamed_intent(self):
+        """diff_draft detects layer rename from mutation records."""
+        from yyr4_linux_control.configurator.diff import diff_draft
+        draft = self._draft()
+        draft.add_layer("user", "layer_1")
+        draft.rename_layer("user", "general", "layer_2")
+        d = diff_draft(draft)
+        renamed = [c for c in d.changes if c.kind == "layer_renamed"]
+        self.assertGreaterEqual(len(renamed), 1)
+        self.assertEqual(renamed[0].kind, "layer_renamed")
+        self.assertIn("general", renamed[0].before_summary)
+        self.assertIn("layer_2", renamed[0].after_summary)
 
     def test_layer_renamed(self):
         draft = self._draft()
