@@ -264,12 +264,13 @@ class TestHTTPSecurityBoundary(unittest.TestCase):
         shutil.rmtree(cls.tmp, ignore_errors=True)
 
     def _api_url(self, path):
-        return f"http://127.0.0.1:{self.server.listen_port}/session/{self.token}/{path}"
+        return f"http://127.0.0.1:{self.server.listen_port}/s/{self.pubid}/{path}"
 
     def _get(self, path):
         req = urllib.request.Request(self._api_url(path))
         req.add_header("Host", self.host)
-        return urllib.request.urlopen(req, timeout=10)
+        opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.cj))
+        return opener.open(req, timeout=10)
 
     def _post(self, path, body, ct="application/json"):
         data = json.dumps(body).encode()

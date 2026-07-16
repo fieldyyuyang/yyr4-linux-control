@@ -8,11 +8,13 @@ token-gated resources with strict Content-Security-Policy.
 from __future__ import annotations
 import json
 import os
+import secrets
 import sys
 import threading
 import time
 import traceback
 import urllib.parse
+from http.cookies import SimpleCookie
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Optional, Dict
@@ -162,42 +164,59 @@ class _EditorHandler(BaseHTTPRequestHandler):
 
         return False
 
-    def _get_session(self) -> Optional[EditorSession]:
-        """Session lookup: cookie, bootstrap route, or URL path token."""
+    def _get_session(self, require_cookie: bool = True) -> Optional[EditorSession]:
+        """Authenticate via Cookie only. Returns session or None."""
         path = self.path.split("?")[0]
         parts = [p for p in path.split("/") if p]
 
-        # Bootstrap route: /bootstrap/<TOKEN> — one-time use
+        # Bootstrap route: /bootstrap/<TOKEN>
         if len(parts) == 2 and parts[0] == "bootstrap":
             token = parts[1]
             for s in self.server._sessions.values():
-                if s.bootstrap_token == token and not s.bootstrap_used:
+                if s.bootstrap_token and secrets.compare_digest(s.bootstrap_token, token) and not s.bootstrap_used:
                     return s
             return None
 
-        # Cookie-based session lookup
+        if not require_cookie:
+            return None
+
         cookie_header = self.headers.get("Cookie", "")
+        if not cookie_header:
+            return None
+
+        try:
+            sc = SimpleCookie()
+            sc.load(cookie_header)
+        except Exception:
+            return None
+
+        # Extract session ID from path: /s/<public_session_id>/...
+        pub_id = None
         for s in self.server._sessions.values():
-            if s.session_cookie and s.session_cookie in cookie_header:
+            if len(parts) >= 2 and parts[0] == "s" and parts[1] == s.public_session_id:
+                pub_id = s.public_session_id
+                break
+        if pub_id is None:
+            return None
+
+        # Find matching session by cookie
+        cname = f"yyr4_session_{pub_id}"
+        cookie_val = sc.get(cname)
+        if cookie_val is None:
+            return None
+
+        for s in self.server._sessions.values():
+            if s.public_session_id == pub_id and s.session_cookie and                secrets.compare_digest(s.session_cookie, cookie_val.value):
                 return s
-
-        # Legacy URL path token: /session/<TOKEN>/...
-        if len(parts) >= 3 and parts[0] == "session":
-            token = parts[1]
-            return self.server._sessions.get(token)
-
         return None
 
     def _check_csrf(self, session: EditorSession) -> bool:
-        """Verify CSRF token for POST mutations (only when using cookie auth)."""
+        """Verify CSRF token for all POST mutations — mandatory."""
         if self.command != "POST":
             return True
-        cookie_header = self.headers.get("Cookie", "")
-        if not cookie_header:
-            return True  # URL token auth — CSRF not required
         expected = session.csrf_token
         actual = self.headers.get("X-YYR4-CSRF-Token", "")
-        return bool(expected and actual == expected)
+        return bool(expected and secrets.compare_digest(expected, actual))
 
     # ── Routing ────────────────────────────────────────────────────
 
@@ -222,77 +241,67 @@ class _EditorHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self._check_security():
             return
-        # Bootstrap route: /bootstrap/<TOKEN>
         bpath = self.path.split("?")[0]
         bp = [p for p in bpath.split("/") if p]
+
+        # ── Bootstrap: /bootstrap/<TOKEN> ──
         if len(bp) == 2 and bp[0] == "bootstrap":
             session = self._get_session()
             if session is None or session.bootstrap_used:
                 self._send_error("unauthorized", 401)
                 return
-            session.bootstrap_used = True
-            session.touch()
+            session.bootstrap_used = True; session.touch()
+            remaining = max(1, int(session.is_expired(self.server._idle_timeout) and 0 or
+                              (self.server._idle_timeout - (time.time() - session.last_activity))))
+            location = f"/s/{session.public_session_id}/"
             self.send_response(303)
-            self.send_header("Location", "/")
-            ck = f"yyr4_session={session.session_cookie}; HttpOnly; SameSite=Strict; Path=/; Max-Age=86400"
-            self.send_header("Set-Cookie", ck)
-            for k, v in SECURITY_HEADERS.items():
-                self.send_header(k, v)
+            self.send_header("Location", location)
+            cname = f"yyr4_session_{session.public_session_id}"
+            cval = f"{cname}={session.session_cookie}; HttpOnly; SameSite=Strict; Path=/s/{session.public_session_id}/; Max-Age={remaining}"
+            self.send_header("Set-Cookie", cval)
+            for k, v in SECURITY_HEADERS.items(): self.send_header(k, v)
             self.end_headers()
             return
-        # Cookie-based homepage: GET /
-        if len(bp) == 0:
-            session = self._get_session()
-            if session is None:
-                self._send_error("unauthorized", 401)
-                return
-            session.touch()
-            self._send_html(_get_editor_html())
-            return
-        parts, is_home, is_asset, asset_name = self._route_parts()
 
-        # ── Home page ──
-        if is_home:
-            token = parts[1]
-            session = self.server._sessions.get(token)  # type: ignore
-            if session is None:
-                self._send_error("unauthorized", 401)
-                return
-            session.touch()
-            self._send_html(_get_editor_html())
+        # ── Legacy /session/<TOKEN>/... → 404 ──
+        if len(bp) >= 2 and bp[0] == "session":
+            self._send_error("invalid_request", 404, "URL token auth removed; use bootstrap")
             return
 
-        # ── Static assets ──
-        if is_asset:
-            session = self._get_session()
-            if session is None:
-                self._send_error("unauthorized", 401)
-                return
-
-            if not is_allowed_asset(asset_name):
-                self._send_error("invalid_request", 404,
-                                 f"Unknown asset: {asset_name}")
-                return
-
-            session.touch()
-            if asset_name == "editor.css":
-                self._send_css(_get_editor_css())
-            elif asset_name == "editor.js":
-                self._send_js(_get_editor_js())
-            return
-
-        # ── API routes ──
+        # ── /s/<pubid>/... routing ──
         session = self._get_session()
         if session is None:
             self._send_error("unauthorized", 401)
             return
         session.touch()
 
-        # ── Cookie-based API route: /api/v1/... (no session prefix) ──
-        if len(parts) >= 2 and parts[0] == "api":
-            api_path = "/" + "/".join(parts)
-        else:
-            api_path = "/" + "/".join(parts[2:]) if len(parts) > 2 else "/"
+        # Update cookie Max-Age on activity
+        remaining = max(1, int(self.server._idle_timeout - (time.time() - session.last_activity)))
+        cname = f"yyr4_session_{session.public_session_id}"
+        ck_up = f"{cname}={session.session_cookie}; HttpOnly; SameSite=Strict; Path=/s/{session.public_session_id}/; Max-Age={remaining}"
+        self.send_header("Set-Cookie", ck_up)
+
+        # Build path relative to /s/<pubid>/
+        rel = bp[2:] if len(bp) >= 3 else []
+
+        # Homepage: /s/<pubid>/
+        if len(rel) == 0:
+            self._send_html(_get_editor_html())
+            return
+
+        # Assets: /s/<pubid>/assets/...
+        if len(rel) >= 2 and rel[0] == "assets":
+            an = rel[1]
+            if not is_allowed_asset(an):
+                self._send_error("invalid_request", 404, f"Unknown asset: {an}")
+                return
+            if an == "editor.css": self._send_css(_get_editor_css())
+            elif an == "editor.js": self._send_js(_get_editor_js())
+            return
+
+        # API: /s/<pubid>/api/v1/...
+        if len(rel) >= 3 and rel[0] == "api":
+            api_path = "/" + "/".join(rel)
 
         try:
             if api_path == "/api/v1/state":
@@ -435,15 +444,16 @@ class _EditorServer(HTTPServer):
 
     allow_reuse_address = True
 
-    def __init__(self, host: str, port: int):
+    def __init__(self, host: str, port: int, idle_timeout: float = 1800):
         super().__init__((host, port), _EditorHandler)
         self._sessions: Dict[str, EditorSession] = {}
         self._shutdown_flag = False
         self.host = host
         self.port = self.server_address[1]
+        self._idle_timeout = idle_timeout
 
     def add_session(self, session: EditorSession) -> None:
-        self._sessions[session.session_token] = session
+        self._sessions[session.public_session_id] = session
 
     def get_session(self, token: str) -> Optional[EditorSession]:
         return self._sessions.get(token)
@@ -488,7 +498,9 @@ class EditorServer:
         return None
 
     def url(self) -> str:
-        return f"http://{self.listen_host}:{self.listen_port}/session/{self.session_token}/"
+        if self._session:
+            return f"http://{self.listen_host}:{self.listen_port}/bootstrap/{self._session.bootstrap_token}"
+        return ""
 
     def start(self) -> str:
         session = create_session(
@@ -496,7 +508,7 @@ class EditorServer:
         )
         self._session = session
 
-        self._httpd = _EditorServer(self.listen_host, self._port)
+        self._httpd = _EditorServer(self.listen_host, self._port, self._idle_timeout)
         self._httpd.add_session(session)
         self._port = self._httpd.server_address[1]
 
@@ -536,7 +548,7 @@ class EditorServer:
 
     def _shutdown(self):
         if self._session:
-            self._session.shutdown()
+            self._session.shutdown(policy=self._session.dirty_policy)
         if self._httpd:
             try:
                 self._httpd.server_close()

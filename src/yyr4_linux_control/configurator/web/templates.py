@@ -17,7 +17,7 @@ for grp in ("A", "B", "C", "D"):
     _ALL_CONTROLS.extend(_ENCODER_GROUPS[grp])
 
 # ═══════════════════════════════════════════════════════════════════
-#  CSS  (served as /session/<TOKEN>/assets/editor.css)
+#  CSS  (served as /s/<TOKEN>/assets/editor.css)
 # ═══════════════════════════════════════════════════════════════════
 
 EDITOR_CSS = r"""* { box-sizing: border-box; margin: 0; padding: 0; }
@@ -133,7 +133,7 @@ button:focus, input:focus, textarea:focus, select:focus { outline: 2px solid #03
 """
 
 # ═══════════════════════════════════════════════════════════════════
-#  JavaScript  (served as /session/<TOKEN>/assets/editor.js)
+#  JavaScript  (served as /s/<TOKEN>/assets/editor.js)
 # ═══════════════════════════════════════════════════════════════════
 
 EDITOR_JS = r"""

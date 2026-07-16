@@ -37,6 +37,8 @@ class EditorSession:
     session_cookie: str = ""    # session cookie value
     csrf_token: str = ""        # X-YYR4-CSRF-Token
     bootstrap_used: bool = False
+    dirty_policy: str = "keep_recovery"
+    public_session_id: str = "" # public, non-auth session ID for routes
     pid: int = field(default_factory=os.getpid)
     port: int = 0
     source_path: str = ""
@@ -201,6 +203,7 @@ def create_session(source_path: str, target_path: str,
     bootstrap_token = secrets.token_urlsafe(32)
     session_cookie = secrets.token_urlsafe(32)
     csrf_token = secrets.token_hex(24)
+    public_session_id = secrets.token_hex(8)
 
     draft = ConfigDraft(source)
     base_sha = draft.base_sha256
@@ -215,6 +218,7 @@ def create_session(source_path: str, target_path: str,
         session_id=session_id, session_token=session_token,
         bootstrap_token=bootstrap_token, session_cookie=session_cookie,
         csrf_token=csrf_token,
+        public_session_id=public_session_id,
         source_path=str(source),
         target_path=str(Path(target_path).resolve()),
         backup_dir=str(Path(backup_dir).resolve()) if backup_dir else None,
