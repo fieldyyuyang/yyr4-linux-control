@@ -93,14 +93,94 @@ class TestContentTypeValidation(unittest.TestCase):
 
 
 class TestPathSafety(unittest.TestCase):
-    def test_normal_path(self):
-        self.assertTrue(safe_path("/tmp/foo/bar"))
+    def test_normal_component(self):
+        self.assertTrue(safe_path("editor.css"))
 
     def test_parent_traversal(self):
         self.assertFalse(safe_path("../etc/passwd"))
 
     def test_encoded_traversal(self):
         self.assertFalse(safe_path("..%2fetc%2fpasswd"))
+
+
+class TestPathSafetyExtended(unittest.TestCase):
+    def test_double_encoded_traversal(self):
+        self.assertFalse(safe_path("%252e%252e%252f"))
+
+    def test_backslash_traversal(self):
+        self.assertFalse(safe_path("..\\etc"))
+
+    def test_absolute_path_rejected(self):
+        self.assertFalse(safe_path("/etc/passwd"))
+
+    def test_empty_rejected(self):
+        self.assertFalse(safe_path(""))
+
+    def test_normal_asset_ok(self):
+        self.assertTrue(safe_path("editor.css"))
+        self.assertTrue(safe_path("editor.js"))
+
+    def test_unknown_asset_name_ok(self):
+        self.assertTrue(safe_path("some-file.data"))
+
+    def test_percent_backslash(self):
+        self.assertFalse(safe_path("%5c"))
+
+
+class TestCSP(unittest.TestCase):
+    def test_csp_present(self):
+        from yyr4_linux_control.configurator.web.security import STRICT_CSP, SECURITY_HEADERS
+        self.assertIn("Content-Security-Policy", SECURITY_HEADERS)
+
+    def test_script_self(self):
+        from yyr4_linux_control.configurator.web.security import STRICT_CSP
+        self.assertIn("script-src 'self'", STRICT_CSP)
+
+    def test_style_self(self):
+        from yyr4_linux_control.configurator.web.security import STRICT_CSP
+        self.assertIn("style-src 'self'", STRICT_CSP)
+
+    def test_object_none(self):
+        from yyr4_linux_control.configurator.web.security import STRICT_CSP
+        self.assertIn("object-src 'none'", STRICT_CSP)
+
+    def test_frame_ancestors_none(self):
+        from yyr4_linux_control.configurator.web.security import STRICT_CSP
+        self.assertIn("frame-ancestors 'none'", STRICT_CSP)
+
+    def test_base_uri_none(self):
+        from yyr4_linux_control.configurator.web.security import STRICT_CSP
+        self.assertIn("base-uri 'none'", STRICT_CSP)
+
+    def test_no_unsafe_inline(self):
+        from yyr4_linux_control.configurator.web.security import STRICT_CSP
+        self.assertNotIn("unsafe-inline", STRICT_CSP)
+
+    def test_no_unsafe_eval(self):
+        from yyr4_linux_control.configurator.web.security import STRICT_CSP
+        self.assertNotIn("unsafe-eval", STRICT_CSP)
+
+    def test_font_none(self):
+        from yyr4_linux_control.configurator.web.security import STRICT_CSP
+        self.assertIn("font-src 'none'", STRICT_CSP)
+
+    def test_frame_src_none(self):
+        from yyr4_linux_control.configurator.web.security import STRICT_CSP
+        self.assertIn("frame-src 'none'", STRICT_CSP)
+
+
+class TestAssetWhitelist(unittest.TestCase):
+    def test_css_allowed(self):
+        from yyr4_linux_control.configurator.web.security import is_allowed_asset
+        self.assertTrue(is_allowed_asset("editor.css"))
+
+    def test_js_allowed(self):
+        from yyr4_linux_control.configurator.web.security import is_allowed_asset
+        self.assertTrue(is_allowed_asset("editor.js"))
+
+    def test_unknown_rejected(self):
+        from yyr4_linux_control.configurator.web.security import is_allowed_asset
+        self.assertFalse(is_allowed_asset("evil.js"))
 
 
 class TestErrorFormatting(unittest.TestCase):

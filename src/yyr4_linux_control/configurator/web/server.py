@@ -1,34 +1,38 @@
 """Self-contained HTTP server for the local graphical editor.
 
 Binds 127.0.0.1 only, uses a random ephemeral port, and gates all
-mutations behind a session token.
+mutations behind a session token.  Serves CSS and JS as external,
+token-gated resources with strict Content-Security-Policy.
 """
 
 from __future__ import annotations
 import json
 import os
-import signal
-import socket
 import sys
 import threading
 import time
 import traceback
+import urllib.parse
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Optional, Dict
 
 from .session import EditorSession, create_session
 from .security import (
-    SECURITY_HEADERS, MAX_BODY_SIZE, ALLOWED_METHODS,
+    SECURITY_HEADERS, STRICT_CSP, MAX_BODY_SIZE, ALLOWED_METHODS,
     validate_origin, validate_host, validate_content_type,
-    safe_path, error_json,
+    safe_path, is_allowed_asset, error_json,
 )
 from . import api as editor_api
 
 
-# ── HTML page ──────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════
+#  Static assets (CSS / JS)
+# ═══════════════════════════════════════════════════════════════════
 
 _EDITOR_HTML = None
+_EDITOR_CSS = None
+_EDITOR_JS = None
 
 
 def _get_editor_html() -> str:
@@ -39,7 +43,25 @@ def _get_editor_html() -> str:
     return _EDITOR_HTML
 
 
-# ── Request handler ────────────────────────────────────────────────
+def _get_editor_css() -> str:
+    global _EDITOR_CSS
+    if _EDITOR_CSS is None:
+        from .templates import EDITOR_CSS
+        _EDITOR_CSS = EDITOR_CSS
+    return _EDITOR_CSS
+
+
+def _get_editor_js() -> str:
+    global _EDITOR_JS
+    if _EDITOR_JS is None:
+        from .templates import EDITOR_JS
+        _EDITOR_JS = EDITOR_JS
+    return _EDITOR_JS
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  Request handler
+# ═══════════════════════════════════════════════════════════════════
 
 class _EditorHandler(BaseHTTPRequestHandler):
     """Per-request handler with security checks and API routing."""
@@ -50,8 +72,9 @@ class _EditorHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
     def log_message(self, fmt, *args):
-        """Suppress default stderr logging in production."""
-        pass
+        pass  # suppress default stderr logging
+
+    # ── Response helpers ───────────────────────────────────────────
 
     def _send_json(self, data: dict, status: int = 200):
         body = json.dumps(data, indent=2, ensure_ascii=False).encode("utf-8")
@@ -68,19 +91,27 @@ class _EditorHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        # Relax CSP slightly for the main page (which is self-contained)
-        headers = dict(SECURITY_HEADERS)
-        headers["Content-Security-Policy"] = (
-            "default-src 'self'; "
-            "script-src 'self'; "
-            "style-src 'self' 'unsafe-inline'; "
-            "img-src 'self' data:; "
-            "connect-src 'self'; "
-            "frame-ancestors 'none'; "
-            "base-uri 'self'; "
-            "form-action 'self'"
-        )
-        for k, v in headers.items():
+        for k, v in SECURITY_HEADERS.items():
+            self.send_header(k, v)
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _send_css(self, css: str, status: int = 200):
+        body = css.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/css; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        for k, v in SECURITY_HEADERS.items():
+            self.send_header(k, v)
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _send_js(self, js: str, status: int = 200):
+        body = js.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/javascript; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        for k, v in SECURITY_HEADERS.items():
             self.send_header(k, v)
         self.end_headers()
         self.wfile.write(body)
@@ -100,32 +131,36 @@ class _EditorHandler(BaseHTTPRequestHandler):
 
     # ── Security validation ────────────────────────────────────────
 
-    def _check_security(self) -> Optional[dict]:
-        """Return error response dict if security check fails, else None."""
+    def _check_security(self) -> bool:
+        """Return True if the request should be rejected."""
         host = self.headers.get("Host", "")
         ok, err = validate_host(host)
         if not ok:
-            return self._send_error(err, 403)
+            self._send_error(err, 403)
+            return True
 
         if self.command not in ALLOWED_METHODS:
-            return self._send_error("invalid_request", 405,
-                                     f"Method not allowed: {self.command}")
+            self._send_error("invalid_request", 405,
+                             f"Method not allowed: {self.command}")
+            return True
 
         content_type = self.headers.get("Content-Type", "")
         ok, err = validate_content_type(content_type, self.command)
         if not ok:
-            return self._send_error(err, 400)
+            self._send_error(err, 400)
+            return True
 
-        # Check body size
         cl = self.headers.get("Content-Length", "0")
         try:
             cl_int = int(cl)
         except ValueError:
-            return self._send_error("invalid_request", 400, "Bad Content-Length")
+            self._send_error("invalid_request", 400, "Bad Content-Length")
+            return True
         if cl_int > MAX_BODY_SIZE:
-            return self._send_error("payload_too_large", 413)
+            self._send_error("payload_too_large", 413)
+            return True
 
-        return None
+        return False
 
     def _get_session(self) -> Optional[EditorSession]:
         """Extract and validate the session token from the path."""
@@ -144,15 +179,32 @@ class _EditorHandler(BaseHTTPRequestHandler):
 
     # ── Routing ────────────────────────────────────────────────────
 
+    def _route_parts(self):
+        """Return (parts-list, is-homepage, is-asset, asset-name)."""
+        path = self.path.split("?")[0]
+        parts = [p for p in path.split("/") if p]
+
+        # /session/<token>/
+        if len(parts) == 2 and parts[0] == "session":
+            return (parts, True, False, None)
+
+        # /session/<token>/assets/<name>
+        if (len(parts) >= 4 and parts[0] == "session"
+                and parts[2] == "assets"):
+            asset_name = parts[3]
+            return (parts, False, True, asset_name)
+
+        # /session/<token>/api/v1/...
+        return (parts, False, False, None)
+
     def do_GET(self):
         if self._check_security():
             return
 
-        path = self.path.split("?")[0]
-        parts = [p for p in path.split("/") if p]
+        parts, is_home, is_asset, asset_name = self._route_parts()
 
-        # Session page: /session/<token>/
-        if len(parts) == 2 and parts[0] == "session":
+        # ── Home page ──
+        if is_home:
             token = parts[1]
             session = self.server._sessions.get(token)  # type: ignore
             if session is None:
@@ -162,7 +214,26 @@ class _EditorHandler(BaseHTTPRequestHandler):
             self._send_html(_get_editor_html())
             return
 
-        # API routes: /session/<token>/api/v1/...
+        # ── Static assets ──
+        if is_asset:
+            session = self._get_session()
+            if session is None:
+                self._send_error("unauthorized", 401)
+                return
+
+            if not is_allowed_asset(asset_name):
+                self._send_error("invalid_request", 404,
+                                 f"Unknown asset: {asset_name}")
+                return
+
+            session.touch()
+            if asset_name == "editor.css":
+                self._send_css(_get_editor_css())
+            elif asset_name == "editor.js":
+                self._send_js(_get_editor_js())
+            return
+
+        # ── API routes ──
         session = self._get_session()
         if session is None:
             self._send_error("unauthorized", 401)
@@ -182,7 +253,8 @@ class _EditorHandler(BaseHTTPRequestHandler):
             elif api_path == "/api/v1/diff/unified":
                 self._send_json(editor_api.handle_unified_diff(session))
             else:
-                self._send_error("invalid_request", 404, f"Unknown API path: {api_path}")
+                self._send_error("invalid_request", 404,
+                                 f"Unknown API path: {api_path}")
         except Exception:
             traceback.print_exc(file=sys.stderr)
             self._send_error("internal_error", 500)
@@ -191,13 +263,19 @@ class _EditorHandler(BaseHTTPRequestHandler):
         if self._check_security():
             return
 
+        parts, is_home, is_asset, _ = self._route_parts()
+        if is_home or is_asset:
+            self._send_error("invalid_request", 405, "Method not allowed")
+            return
+
         session = self._get_session()
         if session is None:
             self._send_error("unauthorized", 401)
             return
         session.touch()
 
-        api_path = "/" + "/".join(self.path.split("?")[0].split("/")[3:])
+        # Build API path from filtered parts
+        api_path = "/" + "/".join(parts[2:]) if len(parts) > 2 else "/"
 
         # Read body
         cl = int(self.headers.get("Content-Length", "0"))
@@ -234,13 +312,14 @@ class _EditorHandler(BaseHTTPRequestHandler):
                 self._send_json(editor_api.handle_save(session, body))
             elif api_path == "/api/v1/shutdown":
                 self._send_json({"status": "ok", "message": "Shutting down"})
-                # Schedule shutdown after response
                 t = threading.Thread(target=self._delayed_shutdown, daemon=True)
                 t.start()
             else:
-                self._send_error("invalid_request", 404, f"Unknown API path: {api_path}")
+                self._send_error("invalid_request", 404,
+                                 f"Unknown API path: {api_path}")
         except KeyError as e:
-            self._send_error("invalid_request", 400, f"Missing required field: {e}")
+            self._send_error("invalid_request", 400,
+                             f"Missing required field: {e}")
         except Exception:
             traceback.print_exc(file=sys.stderr)
             self._send_error("internal_error", 500)
@@ -255,11 +334,12 @@ class _EditorHandler(BaseHTTPRequestHandler):
 
     def _delayed_shutdown(self):
         time.sleep(0.5)
-        server = self.server  # type: _EditorServer
-        server._shutdown_flag = True
+        self.server._shutdown_flag = True
 
 
-# ── HTTP Server ────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════
+#  HTTP Server
+# ═══════════════════════════════════════════════════════════════════
 
 class _EditorServer(HTTPServer):
     """HTTP server bound to 127.0.0.1 with session management."""
@@ -271,7 +351,7 @@ class _EditorServer(HTTPServer):
         self._sessions: Dict[str, EditorSession] = {}
         self._shutdown_flag = False
         self.host = host
-        self.port = self.server_address[1]  # actual bound port
+        self.port = self.server_address[1]
 
     def add_session(self, session: EditorSession) -> None:
         self._sessions[session.session_token] = session
@@ -322,18 +402,13 @@ class EditorServer:
         return f"http://{self.listen_host}:{self.listen_port}/session/{self.session_token}/"
 
     def start(self) -> str:
-        """Create session, bind port, start HTTP server.  Returns the URL."""
         session = create_session(
-            self._source_path,
-            self._target_path,
-            self._backup_dir,
+            self._source_path, self._target_path, self._backup_dir,
         )
         self._session = session
 
         self._httpd = _EditorServer(self.listen_host, self._port)
         self._httpd.add_session(session)
-
-        # Refresh actual port if port=0
         self._port = self._httpd.server_address[1]
 
         url = self.url()
@@ -354,17 +429,14 @@ class EditorServer:
         return url
 
     def _run_loop(self):
-        """Serve with idle-timeout monitoring."""
         assert self._httpd is not None
         idle_check = max(1.0, self._idle_timeout / 10)
 
         while not self._httpd._shutdown_flag:
-            # Check idle timeout
             if self._session and self._session.is_expired(self._idle_timeout):
                 print("Session idle timeout reached — shutting down.")
                 break
 
-            # Process one request with timeout
             self._httpd.timeout = idle_check
             try:
                 self._httpd.handle_request()
@@ -374,7 +446,6 @@ class EditorServer:
         self._shutdown()
 
     def _shutdown(self):
-        """Clean shutdown."""
         if self._session:
             self._session.shutdown()
         if self._httpd:
@@ -382,7 +453,6 @@ class EditorServer:
                 self._httpd.server_close()
             except Exception:
                 pass
-        # Remove session parent if empty
         if self._session:
             try:
                 parent = Path(self._session.session_dir).parent
@@ -392,7 +462,6 @@ class EditorServer:
                 pass
 
     def _launch_browser(self, url: str):
-        """Open the system browser (only when explicitly requested)."""
         import subprocess
         try:
             subprocess.Popen(["xdg-open", url],
@@ -402,7 +471,6 @@ class EditorServer:
             pass
 
     def stop(self):
-        """Signal shutdown and wait for the server thread."""
         if self._httpd:
             self._httpd._shutdown_flag = True
         if self._thread and self._thread.is_alive():
