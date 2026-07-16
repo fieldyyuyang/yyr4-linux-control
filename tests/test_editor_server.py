@@ -276,6 +276,7 @@ class TestHTTPSecurityBoundary(unittest.TestCase):
         req = urllib.request.Request(self._api_url(path), data=data)
         req.add_header("Host", self.host)
         req.add_header("Content-Type", ct)
+        req.add_header("X-YYR4-CSRF-Token", self.server._session.csrf_token if hasattr(self.server, '_session') else "")
         return urllib.request.urlopen(req, timeout=10)
 
     # ── Content-Type ──

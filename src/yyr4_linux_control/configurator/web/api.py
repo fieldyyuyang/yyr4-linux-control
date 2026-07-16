@@ -36,6 +36,9 @@ def _update_draft(session: EditorSession) -> None:
     _atomic_write(text, dp)
     sha = hashlib.sha256(text.encode()).hexdigest()
     update_sidecar_after_mutation(dp, sha, session.draft.mutation_count)
+    # M5.4-A: crash-safe recovery after every mutation
+    session.write_recovery()
+    session.write_registry()
 
 
 def _atomic_write(text: str, path: Path) -> None:
@@ -336,6 +339,8 @@ def handle_save(session: EditorSession, _body: dict = None) -> dict:
 
     # After successful save, refresh base
     session.refresh_base()
+    session.discard_recovery()
+    session.write_registry()
 
     return _ok({
         "saved_sha256": result.saved_sha256,

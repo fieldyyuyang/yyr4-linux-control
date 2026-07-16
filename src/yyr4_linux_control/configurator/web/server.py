@@ -163,19 +163,41 @@ class _EditorHandler(BaseHTTPRequestHandler):
         return False
 
     def _get_session(self) -> Optional[EditorSession]:
-        """Extract and validate the session token from the path."""
+        """Session lookup: cookie, bootstrap route, or URL path token."""
         path = self.path.split("?")[0]
         parts = [p for p in path.split("/") if p]
 
-        if len(parts) < 3 or parts[0] != "session":
+        # Bootstrap route: /bootstrap/<TOKEN> — one-time use
+        if len(parts) == 2 and parts[0] == "bootstrap":
+            token = parts[1]
+            for s in self.server._sessions.values():
+                if s.bootstrap_token == token and not s.bootstrap_used:
+                    return s
             return None
 
-        token = parts[1]
-        server = self.server  # type: _EditorServer
-        session = server._sessions.get(token)
-        if session is None:
-            return None
-        return session
+        # Cookie-based session lookup
+        cookie_header = self.headers.get("Cookie", "")
+        for s in self.server._sessions.values():
+            if s.session_cookie and s.session_cookie in cookie_header:
+                return s
+
+        # Legacy URL path token: /session/<TOKEN>/...
+        if len(parts) >= 3 and parts[0] == "session":
+            token = parts[1]
+            return self.server._sessions.get(token)
+
+        return None
+
+    def _check_csrf(self, session: EditorSession) -> bool:
+        """Verify CSRF token for POST mutations (only when using cookie auth)."""
+        if self.command != "POST":
+            return True
+        cookie_header = self.headers.get("Cookie", "")
+        if not cookie_header:
+            return True  # URL token auth — CSRF not required
+        expected = session.csrf_token
+        actual = self.headers.get("X-YYR4-CSRF-Token", "")
+        return bool(expected and actual == expected)
 
     # ── Routing ────────────────────────────────────────────────────
 
@@ -200,7 +222,24 @@ class _EditorHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self._check_security():
             return
-
+        # Bootstrap route: /bootstrap/<TOKEN>
+        bpath = self.path.split("?")[0]
+        bp = [p for p in bpath.split("/") if p]
+        if len(bp) == 2 and bp[0] == "bootstrap":
+            session = self._get_session()
+            if session is None or session.bootstrap_used:
+                self._send_error("unauthorized", 401)
+                return
+            session.bootstrap_used = True
+            session.touch()
+            self.send_response(303)
+            self.send_header("Location", "/")
+            ck = f"yyr4_session={session.session_cookie}; HttpOnly; SameSite=Strict; Path=/; Max-Age=86400"
+            self.send_header("Set-Cookie", ck)
+            for k, v in SECURITY_HEADERS.items():
+                self.send_header(k, v)
+            self.end_headers()
+            return
         parts, is_home, is_asset, asset_name = self._route_parts()
 
         # ── Home page ──
@@ -245,6 +284,7 @@ class _EditorHandler(BaseHTTPRequestHandler):
         try:
             if api_path == "/api/v1/state":
                 result = editor_api.build_state(session)
+                result["csrf_token"] = session.csrf_token
                 self._send_json({"status": "ok", **result})
             elif api_path == "/api/v1/validate":
                 self._send_json(editor_api.handle_validate(session))
@@ -273,7 +313,9 @@ class _EditorHandler(BaseHTTPRequestHandler):
             self._send_error("unauthorized", 401)
             return
         session.touch()
-
+        if not self._check_csrf(session):
+            self._send_error("unauthorized", 401, "Missing or invalid CSRF token")
+            return
         # Build API path from filtered parts
         api_path = "/" + "/".join(parts[2:]) if len(parts) > 2 else "/"
 
@@ -290,28 +332,60 @@ class _EditorHandler(BaseHTTPRequestHandler):
         try:
             if api_path == "/api/v1/control/set-action":
                 self._send_json(editor_api.handle_set_action(session, body))
+                session.write_recovery()
+                session.write_registry()
             elif api_path == "/api/v1/control/clear-action":
                 self._send_json(editor_api.handle_clear_action(session, body))
+                session.write_recovery()
+                session.write_registry()
             elif api_path == "/api/v1/profile/add":
                 self._send_json(editor_api.handle_add_profile(session, body))
+                session.write_recovery()
+                session.write_registry()
             elif api_path == "/api/v1/profile/rename":
                 self._send_json(editor_api.handle_rename_profile(session, body))
+                session.write_recovery()
+                session.write_registry()
             elif api_path == "/api/v1/profile/remove":
                 self._send_json(editor_api.handle_remove_profile(session, body))
+                session.write_recovery()
+                session.write_registry()
             elif api_path == "/api/v1/profile/set-default":
                 self._send_json(editor_api.handle_set_default_profile(session, body))
+                session.write_recovery()
+                session.write_registry()
             elif api_path == "/api/v1/layer/add":
                 self._send_json(editor_api.handle_add_layer(session, body))
+                session.write_recovery()
+                session.write_registry()
             elif api_path == "/api/v1/layer/rename":
                 self._send_json(editor_api.handle_rename_layer(session, body))
+                session.write_recovery()
+                session.write_registry()
             elif api_path == "/api/v1/layer/remove":
                 self._send_json(editor_api.handle_remove_layer(session, body))
+                session.write_recovery()
+                session.write_registry()
             elif api_path == "/api/v1/layer/set-initial":
                 self._send_json(editor_api.handle_set_initial_layer(session, body))
+                session.write_recovery()
+                session.write_registry()
             elif api_path == "/api/v1/save":
                 self._send_json(editor_api.handle_save(session, body))
+                if session.draft and not session.dirty:
+                    session.discard_recovery()
+                session.write_registry()
             elif api_path == "/api/v1/shutdown":
-                self._send_json({"status": "ok", "message": "Shutting down"})
+                # Parse dirty_policy from body
+                policy = body.get("dirty_policy", "keep_recovery") if isinstance(body, dict) else "keep_recovery"
+                if policy not in ("keep_recovery", "discard", "cancel"):
+                    self._send_error("invalid_request", 400, f"Unknown dirty_policy: {policy}")
+                    return
+                if policy == "cancel":
+                    self._send_json({"status": "ok", "message": "Shutdown cancelled"})
+                    return
+                self._send_json({"status": "ok", "message": "Shutting down", "policy": policy})
+                session.dirty_policy = policy
                 t = threading.Thread(target=self._delayed_shutdown, daemon=True)
                 t.start()
             else:
