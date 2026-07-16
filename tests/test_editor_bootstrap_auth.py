@@ -154,9 +154,20 @@ class TestBootstrapAuthReal(unittest.TestCase):
         r, _ = _do_post(self.port, f"/s/{self.pubid}/api/v1/shutdown",
                         {"dirty_policy":"discard"}, cookie_hdr=self.ck, csrf=self.csrf)
         self.assertEqual(r.status, 200)
-        # After shutdown, server is stopped — cookie should fail or connection reset
-        time.sleep(1)  # Let shutdown propagate
-        self.assertTrue(True)  # Server was shut down successfully
+        # Wait for server thread to actually stop
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            if not hasattr(self.srv, "_thread") or not self.srv._thread.is_alive():
+                break
+            time.sleep(0.1)
+        self.assertFalse(self.srv._thread.is_alive(), "Server thread should exit after shutdown")
+        # Verify port is closed
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(1)
+        result = s.connect_ex(("127.0.0.1", self.port))
+        s.close()
+        self.assertNotEqual(result, 0, f"Port {self.port} should be closed after shutdown")
 
     def test_25_wrong_pubid_401(self):
         r, _ = _do_get(self.port, "/s/DEADBEEF/api/v1/state", self.ck); self.assertEqual(r.status, 401)

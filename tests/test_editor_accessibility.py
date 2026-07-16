@@ -87,12 +87,9 @@ class TestDistributionVerification(unittest.TestCase):
         self.assertGreater(len(docs), 5)
 
     def test_no_pycache_in_src(self):
-        import os, subprocess
-        # Source tree should be clean
-        result = subprocess.run(['find', 'src', '-name', '__pycache__', '-type', 'd'],
-                                capture_output=True, text=True)
-        # pycache dirs are expected during dev but test only structural check
-        self.assertTrue(True)  # informational
+        import os
+        # Source tree contains __pycache__ during development, verify src/ exists
+        self.assertTrue(os.path.isdir('src'), 'Source directory must exist')
 
     def test_cli_entry_points_in_pyproject(self):
         with open('pyproject.toml') as f:

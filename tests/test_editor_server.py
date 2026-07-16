@@ -141,8 +141,8 @@ class TestHTTPSecurityBoundary(unittest.TestCase):
         try:
             r = conn.getresponse(); r.read(); conn.close()
             self.assertIn(r.status, (400, 415))
-        except Exception:
-            pass
+        except (ConnectionResetError, ConnectionRefusedError, OSError):
+            pass  # Server may close connection for bad content type
 
     def test_no_ct_rejected(self):
         conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
@@ -173,8 +173,8 @@ class TestHTTPSecurityBoundary(unittest.TestCase):
         try:
             r = conn.getresponse(); r.read(); conn.close()
             self.assertIn(r.status, (405, 400))
-        except Exception:
-            pass
+        except (ConnectionResetError, ConnectionRefusedError, OSError):
+            pass  # Server may close connection for OPTIONS
 
     def test_unknown_api(self):
         _get(self.port, f"/s/{self.pubid}/api/v1/nonexistent", self.ck)

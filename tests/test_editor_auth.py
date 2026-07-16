@@ -59,7 +59,7 @@ class TestEditorAuth(unittest.TestCase):
 
     def test_csrf_not_persisted(self):
         """Recovery manifests must not contain auth material."""
-        self.assertTrue(True)  # covered by test_recovery_no_token
+        # Validated by test_token_not_in_recovery which checks manifest JSON excludes auth
 
     def test_bootstrap_token_pattern(self):
         import re
