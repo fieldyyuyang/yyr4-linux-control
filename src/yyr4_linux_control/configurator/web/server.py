@@ -240,6 +240,15 @@ class _EditorHandler(BaseHTTPRequestHandler):
                 self.send_header(k, v)
             self.end_headers()
             return
+        # Cookie-based homepage: GET /
+        if len(bp) == 0:
+            session = self._get_session()
+            if session is None:
+                self._send_error("unauthorized", 401)
+                return
+            session.touch()
+            self._send_html(_get_editor_html())
+            return
         parts, is_home, is_asset, asset_name = self._route_parts()
 
         # ── Home page ──
@@ -279,7 +288,11 @@ class _EditorHandler(BaseHTTPRequestHandler):
             return
         session.touch()
 
-        api_path = "/" + "/".join(parts[2:]) if len(parts) > 2 else "/"
+        # ── Cookie-based API route: /api/v1/... (no session prefix) ──
+        if len(parts) >= 2 and parts[0] == "api":
+            api_path = "/" + "/".join(parts)
+        else:
+            api_path = "/" + "/".join(parts[2:]) if len(parts) > 2 else "/"
 
         try:
             if api_path == "/api/v1/state":
@@ -318,6 +331,8 @@ class _EditorHandler(BaseHTTPRequestHandler):
             return
         # Build API path from filtered parts
         api_path = "/" + "/".join(parts[2:]) if len(parts) > 2 else "/"
+        if len(parts) >= 2 and parts[0] == "api":
+            api_path = "/" + "/".join(parts)
 
         # Read body
         cl = int(self.headers.get("Content-Length", "0"))
