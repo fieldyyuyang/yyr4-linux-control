@@ -25,8 +25,11 @@ class TestDualSessionE2E(unittest.TestCase):
         _, _, scB = self._bootstrap(self.srvB.listen_port, self.srvB._session.bootstrap_token)
         self.ckA = self._parse_cookie(scA); self.ckB = self._parse_cookie(scB)
         self.pubA = self.srvA._session.public_session_id; self.pubB = self.srvB._session.public_session_id
-        self.csrfA = self.srvA._session.csrf_token; self.csrfB = self.srvB._session.csrf_token
         self.portA = self.srvA.listen_port; self.portB = self.srvB.listen_port
+        # Get CSRF from authenticated state responses (not from private fields)
+        _, stA = self._get(self.srvA.listen_port, f"/s/{self.pubA}/api/v1/state", self.ckA)
+        _, stB = self._get(self.srvB.listen_port, f"/s/{self.pubB}/api/v1/state", self.ckB)
+        self.csrfA = stA["csrf_token"]; self.csrfB = stB["csrf_token"]
 
     def tearDown(self):
         self.srvA.stop(); self.srvB.stop(); time.sleep(0.2)

@@ -110,3 +110,15 @@ Before any real hardware validation tool runs, users must explicitly acknowledge
 - 可配置白名单策略。
 
 这只是设计约束，不在本阶段实现。
+
+
+## M5.4-A1 Editor Authentication Security
+
+- **Bootstrap**: atomic one-time token consumption (threading.Lock + compare_digest)
+- **Cookie**: session-scoped name (`yyr4_session_<pubid>`), HttpOnly, SameSite=Strict, Path=/s/<pubid>/
+- **CSRF**: mandatory X-YYR4-CSRF-Token header for all POST mutations
+- **Secret comparison**: `secrets.compare_digest()` for cookies, CSRF, bootstrap tokens
+- **Duplicate cookies**: explicitly rejected (raw header count)
+- **No Secure flag**: loopback HTTP — browsers do not send Secure cookies over HTTP
+- **No URL tokens**: old `/session/<TOKEN>/` authentication path removed (404)
+- **Cross-session isolation**: cookies and CSRF scoped per public_session_id

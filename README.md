@@ -78,3 +78,9 @@ The preview is self-contained (no external resources, no JavaScript). The Draft 
 * [Use Cases](docs/use-cases.md)
 * [Profile Library](docs/profile-library.md)
 * [Vibe Coding Approvals](docs/vibe-coding-approvals.md)
+
+
+## M5.4-A1 Authentication (COMPLETE)
+
+Bootstrap → Cookie → CSRF flow. Session-scoped credentials. No permanent URL tokens.
+See `docs/editor-authentication-and-sessions.md`.

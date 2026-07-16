@@ -99,3 +99,14 @@ Each macro step provides:
 - No browser auto-launch
 - No external network access
 - No automatic reload
+
+
+## Authentication (M5.4-A1)
+
+- Bootstrap: one-time URL → 303 → session cookie
+- Cookie: `yyr4_session_<PUBLIC_SESSION_ID>` — HttpOnly, SameSite=Strict, Path-scoped
+- CSRF: mandatory header `X-YYR4-CSRF-Token` on all POST mutations
+- Cross-session: cookie and CSRF isolated per session
+- Old URL tokens: `/session/<TOKEN>/` removed (returns 404)
+- All secret comparison uses `secrets.compare_digest()`
+- Duplicate cookies rejected

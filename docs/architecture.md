@@ -98,3 +98,18 @@ The Editor explicitly does NOT connect to:
 - validation ledger是验证决策来源，不是产品执行层；
 - udev属于部署层；
 - GUI不得直接承担设备访问。
+
+
+## M5.4-A1 Authentication Flow
+
+```
+yyr4ctl editor --config SRC
+  ↓ prints bootstrap URL
+Browser: GET /bootstrap/<TOKEN>
+  → 303 See Other
+  → Set-Cookie: yyr4_session_<pubid>=<secret>; HttpOnly; SameSite=Strict; Path=/s/<pubid>/
+  → Location: /s/<pubid>/
+Browser: GET /s/<pubid>/api/v1/state (Cookie)
+  → CSRF token in response
+Browser: POST /s/<pubid>/api/v1/... (Cookie + X-YYR4-CSRF-Token)
+```

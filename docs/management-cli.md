@@ -50,3 +50,10 @@ The CLI strictly adheres to defined exit codes for scripting integration:
 *   `7`: `EXIT_RELOAD_FAILED` (Daemon rejected the reload)
 *   `8`: `EXIT_PERMISSION` (UID validation failed via `SO_PEERCRED`)
 *   `9`: `EXIT_INTERNAL` (Unexpected CLI internal failure)
+
+
+### Editor Authentication (M5.4-A1)
+
+`yyr4ctl editor start --config SOURCE` prints a one-time Bootstrap URL.
+Old `yyr4ctl editor --config SOURCE` syntax still works.
+No permanent URL tokens. Authentication: Bootstrap → Cookie → CSRF.
