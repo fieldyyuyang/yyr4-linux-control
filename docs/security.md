@@ -55,6 +55,42 @@ Before any real hardware validation tool runs, users must explicitly acknowledge
 * Device nodes are evaluated for filesystem `os.access` readability only if they precisely match the composite YYR4 identity. Unrelated device nodes are never tested for read access.
 * The separation ensures that missing read permissions map clearly to `IntegrationPermissionError` (or `PERMISSION_BLOCKED` via the probe tool) rather than misleadingly indicating device absence (`DeviceNotFoundError`).
 
+
+
+## M5.3 Local Graphical Editor Security
+
+### Session Token
+- Random  per session
+- Token embedded in URL path (/session/TOKEN/)
+- All mutation endpoints require valid token (401 on invalid/missing)
+- Token never logged to disk or console
+
+### Network
+- Binds 127.0.0.1 only (no 0.0.0.0 or LAN)
+- Random ephemeral port (port=0)
+- Host header validated against 127.0.0.1 pattern
+- Origin header validated against loopback patterns
+- No CORS headers (same-origin only)
+
+### Content Security Policy
+-  — no inline scripts, no unsafe-eval
+-  — no inline styles, no unsafe-inline
+- , , 
+- CSS and JS served as external, token-gated resources
+- No external CDN, frameworks, fonts, or images
+
+### Request Guards
+- Content-Type enforced: application/json for all POST mutations
+- Body size limit: 256 KiB
+- Fixed routing (no user-controlled paths in filesystem)
+- Asset whitelist: only editor.css / editor.js
+- Path traversal: encoded form rejection (..%2f, %252e%252e, %5c, etc.)
+
+### Session Cleanup
+- Session directory removed on shutdown
+- Source, target, and backups preserved
+- No daemon, hardware, or action execution access
+
 ## 安全实施顺序 (Phased Security Implementation)
 1. M2.1纯领域模型与dry-run，无系统副作用 (已完成)；
 2. M2.2集中封装真实副作用 (已完成)；

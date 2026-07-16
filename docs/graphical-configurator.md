@@ -4,162 +4,67 @@
 
 The graphical configurator provides a local, offline interface for:
 - Visual official 24-control layout (A1-A12, AL/AP/AR through DL/DP/DR)
-- Action editing (all supported types: hotkey, text, command, macro, etc.)
+- Action editing (all 11 supported types)
 - Profile and Layer management (create, rename, reorder)
 - Configuration validation with structured diagnostics
-- Daemon status display and diagnostics
-- Safe atomic save with diff preview and rollback
+- Safe atomic save with diff preview, backup, and rollback
 
 The configurator does NOT access hardware directly — it communicates
 with `yyr4d` via the management socket or works offline on configuration
 files.
 
-## M5.1 Delivered Scope
+## M5.1 — Read-Only Preview
 
 **Status**: COMPLETE (2026-07-15)
-**Final commit**: `b3e4db82817d6f2de24c48143bdac9c2472d17e4`
-**Test baseline**: 662 (including 20 writer safety tests)
 
-M5.1 delivers the configurator foundation:
-
-| Feature | Status |
-|---|---|
-| Configurator Core (immutable View Model) | ✓ |
-| Self-contained HTML preview | ✓ |
-| CLI generation (`yyr4ctl preview`) | ✓ |
-| Safe atomic output (symlink protection, same-file detection) | ✓ |
-| All 11 action types displayed | ✓ |
-| Macro step expansion (recursive, depth-limited) | ✓ |
-| 24-control layout (buttons + encoders L/P/R) | ✓ |
-| HTML escaping, no external resources | ✓ |
-| 662 automated tests | ✓ |
-| 20 writer safety tests | ✓ |
-| Config editing | ✗ (M5.2) |
-| Save / Apply | ✗ (M5.2) |
-| Diff preview | ✗ (M5.2) |
-| Daemon connection | ✗ (M5.2) |
-
-## Architecture
-
-```
-ConfigLoader (control.config)
-    │
-    ▼
-builder.py ──► immutable View Models (frozen dataclasses)
-    │
-    ▼
-html.py ──► self-contained HTML string
-    │
-    ▼
-writer.py ──► atomic file output (tempfile + fsync + os.replace)
-    │
-    ▼
-CLI (management/cli.py) ──► yyr4ctl preview
-```
-
-- **ConfigLoader**: Reused from control domain — no custom TOML parsing.
-- **builder.py**: Converts `LayeredControlConfig` → `ConfiguratorDocument`.  Handles all 11 action types, official control ordering, and encoder grouping.
-- **models.py**: Frozen dataclasses: `ActionView`, `ControlView`, `LayerView`, `ProfileView`, `ConfiguratorDocument`.
-- **html.py**: Generates a single self-contained HTML file with inline CSS, no JavaScript, no external resources.
-- **writer.py**: Atomic output with symlink rejection, same-file detection, permission hardening.
-
-## View Model
-
-| Model | Fields |
-|---|---|
-| `ConfiguratorDocument` | schema_version, source_path, default_profile, initial_layer, profile_count, total_layer_count, total_configured_controls, validation_status, diagnostics, profiles |
-| `ProfileView` | profile_id, is_default, layer_count, configured_control_count, layers |
-| `LayerView` | layer_id, is_initial, configured_control_count, controls (24 items) |
-| `ControlView` | official_name, control_kind (button/encoder_*), encoder_group (A-D), configured, action, action_summary |
-| `ActionView` | action_type, concise_summary, structured_details, child_steps, warning_flags, side_effect_class |
-
-## Supported Action Display
-
-| Action | side_effect_class | Notes |
-|---|---|---|
-| Hotkey | desktop_input | Keys displayed as `+`-joined string |
-| Text | desktop_input | Content HTML-escaped, truncated at 60 chars |
-| Command | command_execution | Executable name shown; argv in structured_details (not rendered) |
-| Delay | none | Shown as `N ms` |
-| Macro | composite | Steps displayed recursively (depth limit 4) |
-| NoOp | none | "(no operation)" |
-| DebugLog | diagnostic | Message shown up to 60 chars |
-| SetLayer | runtime_context_change | Target layer shown |
-| NextLayer | runtime_context_change | |
-| PreviousLayer | runtime_context_change | |
-| SetProfile | runtime_context_change | Target profile shown |
-| Unknown | unknown | Flagged with warning |
-
-## CLI Usage
-
-```bash
-# Generate a preview
-yyr4ctl preview \
-  --config examples/yyr4-control-from-20260711-backup.toml \
-  --output /tmp/yyr4-preview.html
-
-# With custom title
-yyr4ctl preview \
-  --config ~/.config/yyr4/config.toml \
-  --output ~/preview.html \
-  --title "My YYR4 Layout"
-
-# Overwrite existing file
-yyr4ctl preview \
-  --config my-config.toml \
-  --output existing.html \
-  --force
-```
-
-Rules:
-- `--config` and `--output` are required.
-- Output is NOT a symlink (always rejected).
-- Output and input must not point to the same file.
-- Existing output is rejected unless `--force` is used.
-- `--force` does NOT bypass symlink or same-file checks.
-- No browser is launched; no HTTP server is started.
-- No daemon connection; no hardware access.
-
-## Security Model
-
-- **HTML escaping**: All user text (names, summaries, text content) is escaped via `html.escape()`.
-- **No external resources**: Zero CDN references, external fonts, images, CSS, or JavaScript.
-- **No inline JavaScript**: HTML is pure declarative.
-- **Atomic write**: `tempfile.mkstemp` in output directory → `fsync` → `chmod 644` → `os.replace`.
-- **Symlink protection**: Output symlinks are always rejected (even with `--force`).
-- **Same-file protection**: Input and output pointing to the same inode are rejected.
-- **No live config modification**: The writer never touches `~/.config/yyr4/`.
-- **No Action execution**: The configurator only reads configurations.
-- **No hardware access**: No evdev, no /dev/input, no xdotool, no daemon.
-
-## Current Limitations
-
-- Read-only — no editing capability.
-- No Save or Apply functionality.
-- No daemon connection (no live status, no reload).
-- No Profile/Layer management UI.
-- Structured details (like Command argv) are not rendered in the current HTML output.
-- No diff preview between configurations.
+Delivers: immutable View Model, self-contained HTML preview (no JS, no external resources), `yyr4ctl preview` CLI, atomic output safety. Test baseline: 662.
 
 ## M5.2 — Draft Editing, Validation, Diff, and Safe Save
 
 **Status**: COMPLETE
-**Implementation commits**: `e870e940`, `c50a5d99`, `8384ab5c`, `b0d18204`
 
-M5.2 adds the complete configuration editing domain layer with safe persistence.
-See the Architecture section below for the updated diagram.
+Delivers: Action Spec (JSON ↔ Action), ConfigDraft (base/working isolation), canonical TOML serializer, 14 Draft CLI commands, Semantic Diff (added/removed/changed/mapped/unmapped with risk), safe atomic save (O_EXCL backup, dual-SHA verification), rollback, Draft Sidecar metadata. Test baseline: 784+.
 
-### Action Spec
-Bidirectional JSON ↔ Action: `parse_spec()` / `action_to_spec()`. All 11 types, precise error paths, macro depth limit 10.
+## M5.3 — Interactive Local Graphical Editor
 
-### Draft CLI — 14 Commands
-create, set-action, clear-action, add-profile, rename-profile, remove-profile, set-default-profile, add-layer, rename-layer, remove-layer, set-initial-layer, validate, diff, save.
+**Status**: COMPLETE (2026-07-16)
 
-### Layer Order and Canonical TOML
-NextLayer/PreviousLayer: `general → layer_1 → ... → layer_8`. Serializer matches this. Deterministic byte-identical TOML output.
+Delivers:
+- Local HTTP editor server (127.0.0.1 only)
+- Session management (token, isolated directory, idle timeout, cleanup)
+- 16 REST API endpoints
+- Self-contained HTML + external CSS/JS (no external resources)
+- Strict CSP (no unsafe-inline, no unsafe-eval, no inline styles)
+- All 11 action types with typed form fields
+- Fully typed Macro step editor (no JSON required)
+- Profile/Layer management (add/rename/remove, default/initial)
+- 24-control hardware layout (Encoder L/P/R)
+- Intent-aware Semantic Diff (15 qualified kinds including profile_renamed, layer_renamed)
+- Review panel with unified diff
+- Save gates (validation, review, dirty check)
+- M5.2 concurrency-safe save (backup, atomic write, dual-SHA)
+- Real HTTP security boundary testing
+- Advanced JSON view (optional, collapsed by default)
 
-### Semantic Diff
-Kinds: added, removed, changed, mapped, unmapped. Plus default/initial change tracking. Risk: LOW/MEDIUM/HIGH.
+Test baseline: 950.
 
-### Safe Save and Rollback
-No-replace new targets (os.link), dual-SHA verification for existing, O_EXCL backups, atomic restore.
+## M5.3 Relationship to M5.2
+
+The Editor reuses M5.2 domain APIs without duplicating configuration logic:
+- ConfigDraft (base/working isolation)
+- Action Spec (JSON ↔ Action)
+- Canonical Serializer (deterministic TOML)
+- Semantic Diff (diff_configs / diff_draft)
+- Draft Sidecar (metadata tracking)
+- save_draft (atomic save with concurrency protection)
+
+The browser layer only displays and sends operations — configuration semantics live in the M5.2 domain.
+
+## Current Limitations
+
+- No daemon connection
+- No hardware access
+- No action execution
+- No automatic daemon reload
+- No remote/LAN access (127.0.0.1 only)
+- No persistence of unsaved drafts between sessions

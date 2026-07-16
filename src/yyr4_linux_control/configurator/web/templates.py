@@ -97,6 +97,20 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .step-actions { display: flex; gap: 2px; }
 .macro-add-step { margin-top: 10px; display: flex; gap: 6px; align-items: flex-end; }
 .macro-add-step input { flex: 1; }
+.macro-add-step input { flex: 1; }
+
+/* Macro typed step editor — no inline styles */
+.macro-new-step { border: 1px solid #ddd; padding: 8px; margin-top: 8px; }
+.ms-fields-box { margin-top: 4px; }
+.ms-add-btn { margin-top: 4px; }
+.ms-json-toggle { font-size: 11px; }
+.ms-json-area { display: none; margin-top: 4px; }
+.ms-json-area.visible { display: block; }
+.macro-step-item { cursor: pointer; display: flex; gap: 4px; align-items: center; }
+.macro-step-del-btn { font-size: 10px; padding: 0 3px; }
+.shutdown-msg { padding: 2em; text-align: center; }
+.topbar-actions { margin-left: auto; display: flex; gap: 6px; }
+.hidden { display: none; }
 
 .diff-changes { margin: 8px 0; }
 .diff-item { padding: 4px 8px; border-left: 3px solid #ccc; margin-bottom: 4px; font-size: 13px; }
@@ -328,7 +342,7 @@ function renderActionForm(type, spec) {
     }
     h += '</div>';
     // Typed step adder
-    h += '<div id="macro-new-step" class="macro-add-step" style="border:1px solid #ddd;padding:8px;margin-top:8px;">';
+    h += '<div id="macro-new-step" class="macro-add-step" class="macro-new-step">';
     h += '<strong>New Step:</strong> ';
     h += '<select id="ms-type"><option value="">-- type --</option>';
     var mtypes = ['noop','debug_log','hotkey','text','command','delay','macro','set_layer','next_layer','previous_layer','set_profile'];
@@ -336,10 +350,10 @@ function renderActionForm(type, spec) {
       h += '<option value="' + mtypes[mi] + '">' + mtypes[mi] + '</option>';
     }
     h += '</select>';
-    h += '<div id="ms-fields" style="margin-top:4px;"></div>';
-    h += '<button data-action="macro-add-typed" style="margin-top:4px;">Add Step</button>';
-    h += ' <button data-action="macro-add-json-toggle" style="font-size:11px;">Advanced (JSON)</button>';
-    h += '<div id="ms-json-area" style="display:none;margin-top:4px;">';
+    h += '<div id="ms-fields" class="ms-fields-box"></div>';
+    h += '<button data-action="macro-add-typed" class="ms-fields-box">Add Step</button>';
+    h += ' <button data-action="macro-add-json-toggle" class="ms-json-toggle">Advanced (JSON)</button>';
+    h += '<div id="ms-json-area" class="ms-json-area">';
     h += '<input id="ma-step-json" placeholder=\'{"type":"debug_log","message":"step"}\' size="50">';
     h += '<button data-action="macro-add-json">Add from JSON</button></div>';
     h += '</div>';
@@ -521,9 +535,9 @@ function renderMsFields() {
     if (!inp || !inp.value.trim()) return;
     var li = document.createElement('li');
     li.textContent = inp.value.trim();
-    li.style.cssText = 'cursor:pointer;display:flex;gap:4px;align-items:center';
+    li.className = 'macro-step-item';
     var del = document.createElement('button');
-    del.textContent = '×'; del.style.cssText = 'font-size:10px;padding:0 3px';
+    del.textContent = '×'; del.className = 'macro-step-del-btn';
     del.onclick = function() { li.remove(); };
     li.appendChild(del);
     var ul = document.getElementById('msf-key-list');
@@ -536,9 +550,9 @@ function renderMsFields() {
     if (!inp || !inp.value.trim()) return;
     var li = document.createElement('li');
     li.textContent = inp.value.trim();
-    li.style.cssText = 'cursor:pointer;display:flex;gap:4px;align-items:center';
+    li.className = 'macro-step-item';
     var del = document.createElement('button');
-    del.textContent = '×'; del.style.cssText = 'font-size:10px;padding:0 3px';
+    del.textContent = '×'; del.className = 'macro-step-del-btn';
     del.onclick = function() { li.remove(); };
     li.appendChild(del);
     var ul = document.getElementById('msf-arg-list');
@@ -602,9 +616,9 @@ function editMacroStep(idx) {
   // Pre-fill known fields
   setTimeout(function() {
     if (old.type==='debug_log'&&old.message) { var m=document.getElementById('msf-message'); if(m)m.value=old.message; }
-    else if (old.type==='hotkey'&&old.keys) { var ul=document.getElementById('msf-key-list'); if(ul){ul.innerHTML='';old.keys.forEach(function(k){var li=document.createElement('li');li.textContent=k+' ';var b=document.createElement('button');b.textContent='×';b.style.cssText='font-size:10px;padding:0 3px';b.onclick=function(){li.remove()};li.appendChild(b);ul.appendChild(li)});} }
+    else if (old.type==='hotkey'&&old.keys) { var ul=document.getElementById('msf-key-list'); if(ul){ul.innerHTML='';old.keys.forEach(function(k){var li=document.createElement('li');li.textContent=k+' ';var b=document.createElement('button');b.textContent='×';b.className='macro-step-del-btn';b.onclick=function(){li.remove()};li.appendChild(b);ul.appendChild(li)});} }
     else if (old.type==='text'&&old.value) { var v=document.getElementById('msf-value'); if(v)v.value=old.value; }
-    else if (old.type==='command'&&old.argv) { var ul2=document.getElementById('msf-arg-list'); if(ul2){ul2.innerHTML='';old.argv.forEach(function(a){var li=document.createElement('li');li.textContent=a+' ';var b=document.createElement('button');b.textContent='×';b.style.cssText='font-size:10px;padding:0 3px';b.onclick=function(){li.remove()};li.appendChild(b);ul2.appendChild(li)});} if(old.timeout_seconds){var ti=document.getElementById('msf-timeout');if(ti)ti.value=old.timeout_seconds;} }
+    else if (old.type==='command'&&old.argv) { var ul2=document.getElementById('msf-arg-list'); if(ul2){ul2.innerHTML='';old.argv.forEach(function(a){var li=document.createElement('li');li.textContent=a+' ';var b=document.createElement('button');b.textContent='×';b.className='macro-step-del-btn';b.onclick=function(){li.remove()};li.appendChild(b);ul2.appendChild(li)});} if(old.timeout_seconds){var ti=document.getElementById('msf-timeout');if(ti)ti.value=old.timeout_seconds;} }
     else if (old.type==='delay'&&old.milliseconds) { var ms=document.getElementById('msf-ms'); if(ms)ms.value=old.milliseconds; }
     else if (old.type==='set_layer'&&old.layer) { var sl=document.getElementById('msf-layer'); if(sl)sl.value=old.layer; }
     else if (old.type==='set_profile'&&old.profile) { var sp=document.getElementById('msf-profile'); if(sp)sp.value=old.profile; }
@@ -630,7 +644,7 @@ function addAfterMacroStep(idx) {
 }
 function toggleJsonArea() {
   var el = document.getElementById('ms-json-area');
-  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  if (el) el.classList.toggle('visible');
 }
 function addMacroJsonStep() {
   var raw = document.getElementById('ma-step-json').value;
@@ -678,11 +692,11 @@ function showReview() {
     }
     if (u.unified_diff) { h += '<h4>Unified Diff</h4><pre class="unified-diff">' + esc(u.unified_diff) + '</pre>'; }
     h += '<button data-action="confirm-review" class="btn-primary">Review Complete</button>';
-    el.innerHTML = h; el.style.display = 'block';
+    el.innerHTML = h; el.classList.remove('hidden');
   }).catch(function(e) { showError('Review failed: ' + e.message); });
 }
 function confirmReview() {
-  document.getElementById('review-panel').style.display = 'none';
+  document.getElementById('review-panel').classList.add('hidden');
   showOk('Review confirmed.');
   apiGet('/validate').then(function(d){ STATE = d.status==='ok'?d:STATE; render(); });
 }
@@ -696,7 +710,7 @@ function showValidate() {
     if (errs.length>0) { h+='<h4>Errors ('+errs.length+')</h4>'; for(var i=0;i<errs.length;i++) h+='<div class="diag diag-error">'+esc(errs[i].path||'')+': '+esc(errs[i].message)+'</div>'; }
     if (warns.length>0) { h+='<h4>Warnings ('+warns.length+')</h4>'; for(var j=0;j<warns.length;j++) h+='<div class="diag diag-warn">'+esc(warns[j].path||'')+': '+esc(warns[j].message)+'</div>'; }
     if (errs.length===0&&warns.length===0) h+='<p class="ok">No errors or warnings.</p>';
-    el.innerHTML=h; el.style.display='block';
+    el.innerHTML=h; el.classList.remove('hidden');
   }).catch(function(e){showError('Validate failed: '+e.message)});
 }
 
@@ -718,7 +732,7 @@ function doSave() {
 function doShutdown() {
   if (!confirm('Close the editor?')) return;
   apiPost('/shutdown',{}).catch(function(){});
-  document.body.innerHTML = '<div style="padding:2em;text-align:center"><h2>Editor Closed</h2><p>You may close this tab.</p></div>';
+  document.body.innerHTML = '<div class="shutdown-msg"><h2>Editor Closed</h2><p>You may close this tab.</p></div>';
 }
 """
 
@@ -749,7 +763,7 @@ def render_editor_page() -> str:
   <span id="tb-valid" class="badge valid">-</span>
   <span>Mutations: <strong id="tb-mutations">0</strong></span>
   <span id="status-msg"></span>
-  <span style="margin-left:auto;display:flex;gap:6px;">
+  <span class="topbar-actions">
     <button data-action="show-validate">Validate</button>
     <button data-action="show-review">Review</button>
     <button id="btn-save" data-action="do-save" disabled>Save</button>
@@ -762,7 +776,7 @@ def render_editor_page() -> str:
     <div id="nav-content"></div>
   </div>
   <div id="center-panel">
-    <div id="review-panel"></div>
+    <div id="review-panel" class="hidden"></div>
     <div id="controls-panel">
       <div id="controls-grid"></div>
     </div>

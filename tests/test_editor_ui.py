@@ -161,5 +161,92 @@ class TestEditorUI(unittest.TestCase):
         self.assertIn(":focus", self.css)
 
 
+class TestMacroTypedEditor(unittest.TestCase):
+    """Verify the typed macro editor JS structure — no JSON required."""
+
+    @classmethod
+    def setUpClass(cls):
+        from yyr4_linux_control.configurator.web.templates import EDITOR_JS
+        cls.js = EDITOR_JS
+
+    def test_macro_add_typed_action_present(self):
+        self.assertIn('macro-add-typed', self.js)
+
+    def test_macro_type_selector_present(self):
+        self.assertIn('ms-type', self.js)
+
+    def test_all_11_step_types_in_selector(self):
+        for atype in ('noop', 'debug_log', 'hotkey', 'text', 'command',
+                       'delay', 'macro', 'set_layer', 'next_layer',
+                       'previous_layer', 'set_profile'):
+            self.assertIn(atype, self.js, f'Missing step type: {atype}')
+
+    def test_noop_has_no_required_fields(self):
+        self.assertIn("t === 'noop'", self.js)
+
+    def test_debug_log_has_message_field(self):
+        self.assertIn('msf-message', self.js)
+
+    def test_hotkey_has_key_editor(self):
+        self.assertIn('msf-key-input', self.js)
+        self.assertIn('msf-key-add', self.js)
+        self.assertIn('msf-key-list', self.js)
+
+    def test_text_has_textarea(self):
+        self.assertIn('msf-value', self.js)
+
+    def test_command_has_argv_editor(self):
+        self.assertIn('msf-arg-input', self.js)
+        self.assertIn('msf-arg-add', self.js)
+        self.assertIn('msf-arg-list', self.js)
+        self.assertIn('msf-timeout', self.js)
+
+    def test_delay_has_milliseconds_field(self):
+        self.assertIn('msf-ms', self.js)
+
+    def test_set_layer_has_dropdown(self):
+        self.assertIn('msf-layer', self.js)
+
+    def test_set_profile_has_dropdown(self):
+        self.assertIn('msf-profile', self.js)
+
+    def test_nested_macro_supported(self):
+        self.assertIn("=== 'macro'", self.js)
+
+    def test_add_before_action_present(self):
+        self.assertIn('macro-add-before', self.js)
+
+    def test_add_after_action_present(self):
+        self.assertIn('macro-add-after', self.js)
+
+    def test_delete_step_present(self):
+        self.assertIn('macro-delete', self.js)
+
+    def test_move_up_present(self):
+        self.assertIn('macro-move-up', self.js)
+
+    def test_move_down_present(self):
+        self.assertIn('macro-move-down', self.js)
+
+    def test_edit_step_present(self):
+        self.assertIn('macro-edit', self.js)
+
+    def test_collect_ms_spec_exists(self):
+        self.assertIn('collectMsSpec', self.js)
+
+    def test_json_mode_is_optional_toggle(self):
+        self.assertIn('macro-add-json-toggle', self.js)
+        self.assertIn('toggleJsonArea', self.js)
+
+    def test_no_inline_styles_in_js(self):
+        self.assertNotIn('style=', self.js)
+        self.assertNotIn('cssText', self.js)
+
+    def test_no_inline_handlers_in_js(self):
+        # The JS may use .onclick = function() for programmatic binding but not HTML attributes
+        # Check that there are no HTML onclick= in the JS strings
+        self.assertNotIn('onclick="', self.js)
+
+
 if __name__ == "__main__":
     unittest.main()

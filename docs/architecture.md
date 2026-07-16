@@ -78,6 +78,18 @@ graph TD
 ### Runtime layer
 负责daemon生命周期、重连、热加载和日志。
 
+
+
+## M5.3 Local Graphical Editor Data Flow
+
+
+
+The Editor explicitly does NOT connect to:
+- daemon socket (yyr4d)
+- evdev / /dev/input
+- xdotool / desktop input backends
+- external network
+
 ### Presentation layer
 管理命令行 (`yyr4ctl`) 和 GUI (规划中)，不直接访问硬件，通过 UDS 通信。
 
