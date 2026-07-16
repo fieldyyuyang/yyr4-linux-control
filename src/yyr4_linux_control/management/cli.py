@@ -598,6 +598,46 @@ def cmd_preview(args):
     print(f"Configured controls: {doc.total_configured_controls}")
     sys.exit(EXIT_SUCCESS)
 
+
+def cmd_editor(args):
+    """Start the interactive local graphical configuration editor."""
+    from yyr4_linux_control.configurator.web.server import EditorServer
+
+    target = args.target if args.target else args.config
+    try:
+        server = EditorServer(
+            source_path=args.config,
+            target_path=target,
+            backup_dir=args.backup_dir,
+            port=args.port,
+            idle_timeout=args.idle_timeout,
+            open_browser=args.open_browser,
+        )
+        url = server.start()
+    except FileNotFoundError as e:
+        eprint(str(e))
+        sys.exit(EXIT_CONFIG)
+    except ValueError as e:
+        eprint(str(e))
+        sys.exit(EXIT_CONFIG)
+    except OSError as e:
+        eprint(str(e))
+        sys.exit(EXIT_INTERNAL)
+    except Exception as e:
+        eprint(f"Failed to start editor: {e}")
+        sys.exit(EXIT_INTERNAL)
+
+    try:
+        print("Press Ctrl+C to stop the editor.")
+        while True:
+            import time
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\nShutting down editor...")
+        server.stop()
+        sys.exit(EXIT_SUCCESS)
+
+
 def cmd_context_command(args):
     cmd_name = args.command
     params = {}
@@ -747,6 +787,21 @@ def main():
     d_save.add_argument("--target", required=True)
     d_save.add_argument("--backup-dir", type=str)
 
+    # ── Editor command ──
+    p_editor = subparsers.add_parser("editor")
+    p_editor.add_argument("--config", required=True,
+                          help="Schema v2 configuration to edit")
+    p_editor.add_argument("--target", type=str, default=None,
+                          help="Save target path (default: same as config)")
+    p_editor.add_argument("--backup-dir", type=str, default=None,
+                          help="Optional backup directory")
+    p_editor.add_argument("--port", type=int, default=0,
+                          help="TCP port (0 = OS-assigned ephemeral)")
+    p_editor.add_argument("--idle-timeout", type=int, default=1800,
+                          help="Idle timeout in seconds (default: 1800)")
+    p_editor.add_argument("--open-browser", action="store_true",
+                          help="Open the system browser after starting")
+
     args = parser.parse_args()
 
     if args.command == "validate":
@@ -770,3 +825,6 @@ def main():
 
     elif args.command == "draft":
         cmd_draft_dispatch(args)
+
+    elif args.command == "editor":
+        cmd_editor(args)

@@ -196,6 +196,24 @@ NEXT: Milestone 5 — Optional graphical configurator
 
 NEXT: M5.3 — Interactive Local Graphical Editor and Draft Review Workflow
 
+### M5.3 — Interactive Local Graphical Editor and Draft Review Workflow
+状态：COMPLETE（2026-07-16）
+
+交付物：
+- 本地HTTP编辑器服务器（127.0.0.1 only）
+- Session管理（Token、隔离目录、idle timeout、安全清理）
+- 完整REST API（state、mutation、review、save、shutdown）
+- 自包含HTML+CSS+JS UI（无外部资源）
+- 全11种Action类型编辑
+- Profile/Layer管理（增删改、默认/初始设置）
+- 24-Control硬件布局（Encoder L/P/R）
+- Semantic Diff + Unified Diff（Review面板）
+- 保存前门禁（validation、review、dirty检查）
+- M5.2并发安全保存集成（Backup、原子写入）
+- 测试：920
+
+NEXT: M5.4 — Graphical Editor Hardening, Accessibility, Session Recovery, and Distribution
+
 GUI不直接访问设备，应调用daemon/API。
 
 ## Milestone 6 — Final hardware and product acceptance
