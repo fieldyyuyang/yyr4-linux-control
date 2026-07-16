@@ -14,7 +14,7 @@ from yyr4_linux_control.control.models import LayerId
 _MAX_SPEC_DEPTH = 10
 
 
-def parse_spec(value, path="action"):
+def parse_spec(value, path="action", *, _depth=0):
     """Parse a JSON-compatible dict into an Action object.
 
     Raises *ValueError* with a path-qualified message on failure.
@@ -31,7 +31,7 @@ def parse_spec(value, path="action"):
     if extra:
         raise ValueError(f"{path}: unknown field(s): {', '.join(sorted(extra))}")
 
-    return _dispatch(atype, value, path, depth=0)
+    return _dispatch(atype, value, path, _depth)
 
 
 def action_to_spec(action: Action) -> dict:
@@ -168,7 +168,7 @@ def _parse_macro(value, path, depth):
         raise ValueError(f"{path}.steps: must be an array")
     parsed = []
     for i, step in enumerate(steps):
-        parsed.append(parse_spec(step, f"{path}.steps[{i}]"))
+        parsed.append(parse_spec(step, f"{path}.steps[{i}]", _depth=depth+1))
     return MacroAction(tuple(parsed))
 
 

@@ -715,22 +715,24 @@ def main():
     d_clear.add_argument("--layer", required=True)
     d_clear.add_argument("--control", required=True)
 
-    for name in ("add-profile","rename-profile","remove-profile","set-default-profile",
-                 "add-layer","rename-layer","remove-layer","set-initial-layer"):
+    for name in ("add-profile","rename-profile","remove-profile","set-default-profile"):
         dp = draft_subs.add_parser(name)
-        if "profile" in name:
-            dp.add_argument("--draft", required=True)
-            dp.add_argument("--profile-id", required=True)
-            if "rename" in name:
-                dp.add_argument("--new-profile-id", required=True)
-        else:
-            dp.add_argument("--draft", required=True)
-            dp.add_argument("--profile", required=True)
-            dp.add_argument("--layer-id", required=True)
-            if "rename" in name:
-                dp.add_argument("--new-layer-id", required=True)
-            elif "initial" in name:
-                pass  # already have --layer-id
+        dp.add_argument("--draft", required=True)
+        dp.add_argument("--profile-id", required=True)
+        if "rename" in name:
+            dp.add_argument("--new-profile-id", required=True)
+
+    for name in ("add-layer","rename-layer","remove-layer"):
+        dp = draft_subs.add_parser(name)
+        dp.add_argument("--draft", required=True)
+        dp.add_argument("--profile", required=True)
+        dp.add_argument("--layer-id", required=True)
+        if "rename" in name:
+            dp.add_argument("--new-layer-id", required=True)
+
+    dp_sil = draft_subs.add_parser("set-initial-layer")
+    dp_sil.add_argument("--draft", required=True)
+    dp_sil.add_argument("--layer-id", required=True)
 
     d_validate = draft_subs.add_parser("validate")
     d_validate.add_argument("--draft", required=True)
