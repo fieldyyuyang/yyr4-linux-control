@@ -239,29 +239,29 @@ class _EditorHandler(BaseHTTPRequestHandler):
         return (parts, False, False, None)
 
     def do_GET(self):
-        if self._check_security():
-            return
+        # Bootstrap must work before security checks (needs different headers)
         bpath = self.path.split("?")[0]
         bp = [p for p in bpath.split("/") if p]
-
-        # ── Bootstrap: /bootstrap/<TOKEN> ──
         if len(bp) == 2 and bp[0] == "bootstrap":
-            session = self._get_session()
-            if session is None or session.bootstrap_used:
+            session = self._get_session(require_cookie=False)
+            if session is None or not session.consume_bootstrap_token(bp[1]):
                 self._send_error("unauthorized", 401)
                 return
-            session.bootstrap_used = True; session.touch()
-            remaining = max(1, int(session.is_expired(self.server._idle_timeout) and 0 or
-                              (self.server._idle_timeout - (time.time() - session.last_activity))))
+            session.touch()
+            remaining = max(1, int(self.server._idle_timeout - (time.time() - session.last_activity)))
             location = f"/s/{session.public_session_id}/"
             self.send_response(303)
             self.send_header("Location", location)
             cname = f"yyr4_session_{session.public_session_id}"
             cval = f"{cname}={session.session_cookie}; HttpOnly; SameSite=Strict; Path=/s/{session.public_session_id}/; Max-Age={remaining}"
             self.send_header("Set-Cookie", cval)
-            for k, v in SECURITY_HEADERS.items(): self.send_header(k, v)
+            self.send_header("Content-Length", "0")
             self.end_headers()
             return
+        if self._check_security():
+            return
+
+
 
         # ── Legacy /session/<TOKEN>/... → 404 ──
         if len(bp) >= 2 and bp[0] == "session":

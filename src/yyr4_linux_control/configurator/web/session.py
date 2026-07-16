@@ -1,6 +1,6 @@
 """M5.4-A Session: Bootstrap/Cookie/CSRF auth, active registry, crash-safe recovery."""
 
-import os, json, secrets, shutil, time, hashlib, signal, tempfile
+import os, json, secrets, shutil, time, hashlib, signal, tempfile, threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -37,6 +37,7 @@ class EditorSession:
     session_cookie: str = ""    # session cookie value
     csrf_token: str = ""        # X-YYR4-CSRF-Token
     bootstrap_used: bool = False
+    _bootstrap_lock: object = field(default_factory=threading.Lock)
     dirty_policy: str = "keep_recovery"
     public_session_id: str = "" # public, non-auth session ID for routes
     pid: int = field(default_factory=os.getpid)
@@ -75,6 +76,16 @@ class EditorSession:
 
     def mark_reviewed(self) -> None:
         self._reviewed_mutation = self.mutation_count
+
+    def consume_bootstrap_token(self, candidate: str) -> bool:
+        """Atomically validate and consume bootstrap token."""
+        with self._bootstrap_lock:
+            if self.bootstrap_used or not self.bootstrap_token:
+                return False
+            if not secrets.compare_digest(self.bootstrap_token, candidate):
+                return False
+            self.bootstrap_used = True
+            return True
 
     def touch(self) -> None:
         self.last_activity = time.time()
