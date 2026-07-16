@@ -1,4 +1,9 @@
-"""Semantic configuration diff and unified text diff for YYR4 configurations."""
+"""Semantic configuration diff and unified text diff for YYR4 configurations.
+
+Produces fully-qualified kind names that clearly identify the entity
+type (profile_added, layer_removed, control_mapped, macro_step_changed,
+runtime_target_changed, etc.).
+"""
 
 from __future__ import annotations
 import difflib
@@ -13,7 +18,7 @@ from .serializer import serialize
 @dataclass
 class ControlDiff:
     path: str                    # profiles.X.layers.Y.controls.Z
-    kind: str                    # mapped, unmapped, changed
+    kind: str                    # control_mapped, control_unmapped, control_action_changed
     before_summary: str
     after_summary: str
     risk: str = "LOW"
@@ -22,7 +27,7 @@ class ControlDiff:
 @dataclass
 class LayerDiff:
     path: str                    # profiles.X.layers.Y
-    kind: str                    # added, removed, renamed
+    kind: str                    # layer_added, layer_removed, layer_renamed
     before_summary: str
     after_summary: str
     risk: str = "LOW"
@@ -31,7 +36,7 @@ class LayerDiff:
 @dataclass
 class ProfileDiff:
     path: str                    # profiles.X
-    kind: str                    # added, removed, renamed
+    kind: str                    # profile_added, profile_removed, profile_renamed
     before_summary: str
     after_summary: str
     risk: str = "LOW"
@@ -60,7 +65,7 @@ def diff_configs(base: "LayeredControlConfig",  # type: ignore
     for pid in sorted(base_profiles - draft_profiles, key=lambda p: p.value):
         changes.append(ProfileDiff(
             path=f"profiles.{pid.value}",
-            kind="removed",
+            kind="profile_removed",
             before_summary=f"Profile {pid.value}",
             after_summary="(removed)",
             risk="HIGH",
@@ -69,7 +74,7 @@ def diff_configs(base: "LayeredControlConfig",  # type: ignore
     for pid in sorted(draft_profiles - base_profiles, key=lambda p: p.value):
         changes.append(ProfileDiff(
             path=f"profiles.{pid.value}",
-            kind="added",
+            kind="profile_added",
             before_summary="(new)",
             after_summary=f"Profile {pid.value}",
             risk="MEDIUM",
@@ -84,7 +89,7 @@ def diff_configs(base: "LayeredControlConfig",  # type: ignore
         for lid in sorted(b_layers - d_layers, key=lambda l: l.value):
             changes.append(LayerDiff(
                 path=f"profiles.{pid.value}.layers.{lid.value}",
-                kind="removed",
+                kind="layer_removed",
                 before_summary=f"Layer {lid.value}",
                 after_summary="(removed)",
                 risk="HIGH",
@@ -93,7 +98,7 @@ def diff_configs(base: "LayeredControlConfig",  # type: ignore
         for lid in sorted(d_layers - b_layers, key=lambda l: l.value):
             changes.append(LayerDiff(
                 path=f"profiles.{pid.value}.layers.{lid.value}",
-                kind="added",
+                kind="layer_added",
                 before_summary="(new)",
                 after_summary=f"Layer {lid.value}",
                 risk="MEDIUM",
@@ -109,21 +114,24 @@ def diff_configs(base: "LayeredControlConfig",  # type: ignore
                 cpath = f"profiles.{pid.value}.layers.{lid.value}.controls.{oc.value}"
                 if b_act is None and d_act is not None:
                     changes.append(ControlDiff(
-                        path=cpath, kind="mapped",
+                        path=cpath, kind="control_mapped",
                         before_summary="UNMAPPED",
                         after_summary=_summarize(d_act),
                         risk=_risk_action(d_act),
                     ))
                 elif b_act is not None and d_act is None:
                     changes.append(ControlDiff(
-                        path=cpath, kind="unmapped",
+                        path=cpath, kind="control_unmapped",
                         before_summary=_summarize(b_act),
                         after_summary="UNMAPPED",
                         risk="MEDIUM",
                     ))
                 elif b_act is not None and d_act is not None and b_act != d_act:
+                    # Check for macro step changes and runtime target changes
+                    sub = _sub_control_diffs(cpath, b_act, d_act)
+                    changes.extend(sub)
                     changes.append(ControlDiff(
-                        path=cpath, kind="changed",
+                        path=cpath, kind="control_action_changed",
                         before_summary=_summarize(b_act),
                         after_summary=_summarize(d_act),
                         risk=_max_risk(_risk_action(b_act), _risk_action(d_act)),
@@ -134,7 +142,7 @@ def diff_configs(base: "LayeredControlConfig",  # type: ignore
         def_profile_changed = (base.default_profile.value, draft.default_profile.value)
         changes.insert(0, ProfileDiff(
             path="default_profile",
-            kind="changed",
+            kind="default_profile_changed",
             before_summary=base.default_profile.value,
             after_summary=draft.default_profile.value,
             risk="MEDIUM",
@@ -145,7 +153,7 @@ def diff_configs(base: "LayeredControlConfig",  # type: ignore
         init_layer_changed = (base.initial_layer.value, draft.initial_layer.value)
         changes.insert(0, LayerDiff(
             path="initial_layer",
-            kind="changed",
+            kind="initial_layer_changed",
             before_summary=base.initial_layer.value,
             after_summary=draft.initial_layer.value,
             risk="MEDIUM",
@@ -174,6 +182,67 @@ def unified_diff(base_text: str, draft_text: str,
         tofile=tofile,
     )
     return "".join(diff)
+
+
+# ── Sub-control diff helpers ──────────────────────────────────────
+
+def _sub_control_diffs(cpath: str, b_act, d_act) -> list:
+    """Produce macro_step_* and runtime_target_* diffs for a changed control."""
+    from yyr4_linux_control.control.actions import (
+        MacroAction, SetLayerAction, SetProfileAction,
+    )
+    result = []
+
+    # Macro step diffs
+    if isinstance(b_act, MacroAction) and isinstance(d_act, MacroAction):
+        b_steps = b_act.steps
+        d_steps = d_act.steps
+        max_len = max(len(b_steps), len(d_steps))
+        for i in range(max_len):
+            spath = f"{cpath}.steps[{i}]"
+            b_s = b_steps[i] if i < len(b_steps) else None
+            d_s = d_steps[i] if i < len(d_steps) else None
+            if b_s is None and d_s is not None:
+                result.append(ControlDiff(
+                    path=spath, kind="macro_step_added",
+                    before_summary="(none)",
+                    after_summary=_summarize(d_s),
+                    risk=_risk_action(d_s),
+                ))
+            elif b_s is not None and d_s is None:
+                result.append(ControlDiff(
+                    path=spath, kind="macro_step_removed",
+                    before_summary=_summarize(b_s),
+                    after_summary="(none)",
+                    risk="MEDIUM",
+                ))
+            elif b_s is not None and d_s is not None and b_s != d_s:
+                result.append(ControlDiff(
+                    path=spath, kind="macro_step_changed",
+                    before_summary=_summarize(b_s),
+                    after_summary=_summarize(d_s),
+                    risk=_max_risk(_risk_action(b_s), _risk_action(d_s)),
+                ))
+
+    # Runtime target changes
+    if isinstance(b_act, SetLayerAction) and isinstance(d_act, SetLayerAction):
+        if b_act.layer != d_act.layer:
+            result.append(ControlDiff(
+                path=cpath, kind="runtime_target_changed",
+                before_summary=f"SetLayer → {b_act.layer}",
+                after_summary=f"SetLayer → {d_act.layer}",
+                risk="MEDIUM",
+            ))
+    if isinstance(b_act, SetProfileAction) and isinstance(d_act, SetProfileAction):
+        if b_act.profile != d_act.profile:
+            result.append(ControlDiff(
+                path=cpath, kind="runtime_target_changed",
+                before_summary=f"SetProfile → {b_act.profile}",
+                after_summary=f"SetProfile → {d_act.profile}",
+                risk="MEDIUM",
+            ))
+
+    return result
 
 
 def _summarize(action: "Action") -> str:  # type: ignore

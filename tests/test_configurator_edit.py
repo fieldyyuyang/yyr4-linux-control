@@ -293,14 +293,14 @@ class TestDiff(unittest.TestCase):
             self.base.working_config,
         )
         self.assertEqual(len(result.changes), 1)
-        self.assertEqual(result.changes[0].kind, "changed")
+        self.assertEqual(result.changes[0].kind, "control_action_changed")
 
     def test_control_mapped(self):
         draft2 = ConfigDraft(Path("examples/yyr4-control-from-20260711-backup.toml"))
         draft2.clear_action("user", "general", "A1")
         # Now base has A1 mapped, draft2 does not
         result = self.diff_configs(draft2.working_config, self.base.working_config)
-        mapped = [c for c in result.changes if c.kind == "mapped"]
+        mapped = [c for c in result.changes if c.kind == "control_mapped"]
         self.assertGreaterEqual(len(mapped), 1)
 
     def test_profile_added(self):
@@ -309,7 +309,7 @@ class TestDiff(unittest.TestCase):
             load_control_config_from_file(Path("examples/yyr4-control-from-20260711-backup.toml")),
             self.base.working_config,
         )
-        added = [c for c in result.changes if c.kind == "added"]
+        added = [c for c in result.changes if c.kind == "profile_added"]
         self.assertGreaterEqual(len(added), 1)
 
     def test_unified_diff(self):

@@ -6,14 +6,23 @@
 `yyr4-linux-control` is a professional, context-aware control surface platform tailored for Debian 13 and modern Linux desktops. It maximizes the capabilities of the YYR4 programmable keypad (12 mechanical keys, 4 encoders) by providing context-aware app switching, multi-layer mapping, macros, and deep system integration.
 
 ## Current State
-**[Status: Milestone 1, 2, 3, 4, 5.1 & 5.2 Completed — Milestone 5.3 Next]**
+**[Status: Milestone 1, 2, 3, 4, 5.1, 5.2 & 5.3 Completed]**
 
-M5.2 is complete: Draft editing domain layer, Action Spec (JSON), 14 Draft CLI commands, deterministic serializer, semantic diff, safe atomic save with rollback, and sidecar metadata.
+M5.3 is complete: Local graphical editor with strict CSP, external CSS/JS, real HTTP security boundary, full semantic diff (qualified kinds), typed macro editing, and review workflow.
 
 **Current development target:**
-**Milestone 5.3 — Interactive Local Graphical Editor and Draft Review Workflow**
+**Milestone 5.4 — Graphical Editor Hardening, Accessibility, Session Recovery, and Distribution**
 
 ### Quick examples
+
+**Local graphical editor (runs entirely offline, never touches real config):**
+```bash
+yyr4ctl editor \
+  --config examples/yyr4-control-from-20260711-backup.toml \
+  --target /tmp/yyr4-edited.toml \
+  --port 0
+```
+Binds 127.0.0.1 only. No daemon connection. No hardware access. No browser auto-launch by default.
 
 **Read-only preview:**
 ```bash

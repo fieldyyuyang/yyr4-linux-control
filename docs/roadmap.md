@@ -207,10 +207,14 @@ NEXT: M5.3 — Interactive Local Graphical Editor and Draft Review Workflow
 - 全11种Action类型编辑
 - Profile/Layer管理（增删改、默认/初始设置）
 - 24-Control硬件布局（Encoder L/P/R）
-- Semantic Diff + Unified Diff（Review面板）
+- Semantic Diff（完整kind：profile_added/removed/renamed、layer_added/removed/renamed、control_mapped/unmapped/action_changed、macro_step_added/removed/changed、runtime_target_changed、default_profile_changed、initial_layer_changed）
+- Unified Diff（Review面板）
 - 保存前门禁（validation、review、dirty检查）
 - M5.2并发安全保存集成（Backup、原子写入）
-- 测试：920
+- 严格CSP（无unsafe-inline/eval）
+- 外部CSS/JS资源（Token路径提供）
+- 真实HTTP安全边界测试
+- 测试：948
 
 NEXT: M5.4 — Graphical Editor Hardening, Accessibility, Session Recovery, and Distribution
 
