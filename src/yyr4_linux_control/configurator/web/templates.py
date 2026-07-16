@@ -318,15 +318,31 @@ function renderActionForm(type, spec) {
       h += '<span class="step-type">' + esc(steps[i].type) + '</span>';
       h += '<span class="step-summary">' + esc(JSON.stringify(steps[i]).substring(0,60)) + '</span>';
       h += '<div class="step-actions">';
+      h += '<button data-action="macro-edit" data-idx="' + i + '">Edit</button>';
+      h += '<button data-action="macro-add-before" data-idx="' + i + '">+Before</button>';
+      h += '<button data-action="macro-add-after" data-idx="' + i + '">+After</button>';
       h += '<button data-action="macro-move-up" data-idx="' + i + '">&#8593;</button>';
       h += '<button data-action="macro-move-down" data-idx="' + i + '">&#8595;</button>';
       h += '<button data-action="macro-delete" data-idx="' + i + '">&#10005;</button>';
       h += '</div></div>';
     }
     h += '</div>';
-    h += '<div class="macro-add-step"><label for="ma-step-json">Add step (JSON):</label>';
+    // Typed step adder
+    h += '<div id="macro-new-step" class="macro-add-step" style="border:1px solid #ddd;padding:8px;margin-top:8px;">';
+    h += '<strong>New Step:</strong> ';
+    h += '<select id="ms-type"><option value="">-- type --</option>';
+    var mtypes = ['noop','debug_log','hotkey','text','command','delay','macro','set_layer','next_layer','previous_layer','set_profile'];
+    for (var mi = 0; mi < mtypes.length; mi++) {
+      h += '<option value="' + mtypes[mi] + '">' + mtypes[mi] + '</option>';
+    }
+    h += '</select>';
+    h += '<div id="ms-fields" style="margin-top:4px;"></div>';
+    h += '<button data-action="macro-add-typed" style="margin-top:4px;">Add Step</button>';
+    h += ' <button data-action="macro-add-json-toggle" style="font-size:11px;">Advanced (JSON)</button>';
+    h += '<div id="ms-json-area" style="display:none;margin-top:4px;">';
     h += '<input id="ma-step-json" placeholder=\'{"type":"debug_log","message":"step"}\' size="50">';
-    h += '<button data-action="macro-add-step">+ Step</button></div>';
+    h += '<button data-action="macro-add-json">Add from JSON</button></div>';
+    h += '</div>';
   }
   else if (type === 'set_layer' || type === 'set_profile') {
     var targetKey = type === 'set_layer' ? 'layer' : 'profile';
@@ -346,6 +362,7 @@ function renderActionForm(type, spec) {
 
 // ── Event delegation on body ──
 document.addEventListener('DOMContentLoaded', function() {
+  document.addEventListener('change', function(e) { if (e.target && e.target.id === 'ms-type') renderMsFields(); });
   document.body.addEventListener('click', function(e) {
     var target = e.target;
     while (target && target !== document.body) {
@@ -377,10 +394,15 @@ function handleAction(action, el) {
     case 'rename-layer': renameLayer(); break;
     case 'remove-layer': removeLayer(); break;
     case 'set-initial-layer': setInitialLayer(); break;
+    case 'macro-edit': editMacroStep(parseInt(el.getAttribute('data-idx'))); break;
+    case 'macro-add-before': addBeforeMacroStep(parseInt(el.getAttribute('data-idx'))); break;
+    case 'macro-add-after': addAfterMacroStep(parseInt(el.getAttribute('data-idx'))); break;
     case 'macro-move-up': moveMacroStep(parseInt(el.getAttribute('data-idx')), -1); break;
     case 'macro-move-down': moveMacroStep(parseInt(el.getAttribute('data-idx')), 1); break;
     case 'macro-delete': deleteMacroStep(parseInt(el.getAttribute('data-idx'))); break;
-    case 'macro-add-step': addMacroStep(); break;
+    case 'macro-add-typed': addMacroStep(); break;
+    case 'macro-add-json': addMacroJsonStep(); break;
+    case 'macro-add-json-toggle': toggleJsonArea(); break;
     case 'show-validate': showValidate(); break;
     case 'show-review': showReview(); break;
     case 'confirm-review': confirmReview(); break;
@@ -415,7 +437,7 @@ function saveAction(type) {
     if (!isNaN(to) && to > 0) spec.timeout_seconds = to;
   }
   else if (type === 'delay') spec.milliseconds = parseInt(document.getElementById('af-ms').value) || 100;
-  else if (type === 'macro') spec.steps = (ACTIVE_LAYER.controls[EDITING_CONTROL]&&ACTIVE_LAYER.controls[EDITING_CONTROL].steps)||[];
+  else if (type === 'macro') { spec.steps = (ACTIVE_LAYER.controls[EDITING_CONTROL]&&ACTIVE_LAYER.controls[EDITING_CONTROL].steps)||[]; }
   else if (type === 'set_layer') spec.layer = document.getElementById('af-target').value;
   else if (type === 'set_profile') spec.profile = document.getElementById('af-target').value;
   apiPost('/control/set-action', {profile:ACTIVE_PROFILE.profile_id,layer:ACTIVE_LAYER.layer_id,control:EDITING_CONTROL,action_spec:spec})
@@ -446,16 +468,176 @@ function renameLayer() { if(!ACTIVE_PROFILE||!ACTIVE_LAYER)return; var n=prompt(
 function removeLayer() { if(!ACTIVE_PROFILE||!ACTIVE_LAYER)return; if(!confirm('Delete layer?'))return; apiPost('/layer/remove',{profile:ACTIVE_PROFILE.profile_id,layer_id:ACTIVE_LAYER.layer_id}).then(function(d){if(d.status==='ok'){STATE=d;ACTIVE_PROFILE=STATE.profiles.find(function(p){return p.profile_id===ACTIVE_PROFILE.profile_id});ACTIVE_LAYER=ACTIVE_PROFILE.layers.length>0?ACTIVE_PROFILE.layers[0]:null;render();}else showError(d.error.message);}).catch(function(e){showError(e.message)}); }
 function setInitialLayer() { if(!ACTIVE_LAYER)return; apiPost('/layer/set-initial',{layer_id:ACTIVE_LAYER.layer_id}).then(function(d){if(d.status==='ok'){STATE=d;render();}else showError(d.error.message);}).catch(function(e){showError(e.message)}); }
 
-function addMacroStep() {
-  var raw = document.getElementById('ma-step-json').value;
-  var stepSpec; try { stepSpec = JSON.parse(raw); } catch(e) { showError('Invalid JSON'); return; }
-  if (!stepSpec.type) { showError('Missing type'); return; }
+var MACRO_EDIT_IDX = -1;
+
+function renderMsFields() {
+  var sel = document.getElementById('ms-type');
+  if (!sel) return;
+  var t = sel.value;
+  var el = document.getElementById('ms-fields');
+  if (!el) return;
+  var h = '';
+  if (t === 'noop' || t === 'next_layer' || t === 'previous_layer') {
+    h += '<p>No additional fields needed.</p>';
+  } else if (t === 'debug_log') {
+    h += '<label>Message: <input id="msf-message" size="40"></label>';
+  } else if (t === 'hotkey') {
+    h += '<div id="msf-keys"><label>Key: <input id="msf-key-input" size="15"></label>';
+    h += '<button id="msf-key-add" type="button">Add</button>';
+    h += '<ul id="msf-key-list"></ul></div>';
+    h += '<p class="hint">Add keys one at a time (e.g. CTRL, SHIFT, A)</p>';
+  } else if (t === 'text') {
+    h += '<label>Text: <textarea id="msf-value" rows="2" cols="40"></textarea></label>';
+  } else if (t === 'command') {
+    h += '<div id="msf-argv"><label>Arg: <input id="msf-arg-input" size="20"></label>';
+    h += '<button id="msf-arg-add" type="button">Add</button>';
+    h += '<ul id="msf-arg-list"></ul></div>';
+    h += '<label>Timeout (s): <input id="msf-timeout" type="number" value="30" size="5"></label>';
+    h += '<p class="hint">One arg at a time. Executed by daemon only.</p>';
+  } else if (t === 'delay') {
+    h += '<label>Milliseconds: <input id="msf-ms" type="number" min="0" value="100" size="10"> ms</label>';
+  } else if (t === 'macro') {
+    h += '<p>Nested macro — edit after adding.</p>';
+  } else if (t === 'set_layer') {
+    h += '<label>Target Layer: <select id="msf-layer">';
+    var layers = ACTIVE_PROFILE ? ACTIVE_PROFILE.layers.map(function(l){return l.layer_id}) : [];
+    for (var lj = 0; lj < layers.length; lj++) {
+      h += '<option value="' + esc(layers[lj]) + '">' + esc(layers[lj]) + '</option>';
+    }
+    h += '</select></label>';
+  } else if (t === 'set_profile') {
+    h += '<label>Target Profile: <select id="msf-profile">';
+    var profs = STATE.profiles ? STATE.profiles.map(function(p){return p.profile_id}) : [];
+    for (var pj = 0; pj < profs.length; pj++) {
+      h += '<option value="' + esc(profs[pj]) + '">' + esc(profs[pj]) + '</option>';
+    }
+    h += '</select></label>';
+  }
+  el.innerHTML = h;
+  // Wire dynamic add buttons
+  var ka = document.getElementById('msf-key-add');
+  if (ka) ka.onclick = function() {
+    var inp = document.getElementById('msf-key-input');
+    if (!inp || !inp.value.trim()) return;
+    var li = document.createElement('li');
+    li.textContent = inp.value.trim();
+    li.style.cssText = 'cursor:pointer;display:flex;gap:4px;align-items:center';
+    var del = document.createElement('button');
+    del.textContent = '×'; del.style.cssText = 'font-size:10px;padding:0 3px';
+    del.onclick = function() { li.remove(); };
+    li.appendChild(del);
+    var ul = document.getElementById('msf-key-list');
+    if (ul) ul.appendChild(li);
+    inp.value = '';
+  };
+  var aa = document.getElementById('msf-arg-add');
+  if (aa) aa.onclick = function() {
+    var inp = document.getElementById('msf-arg-input');
+    if (!inp || !inp.value.trim()) return;
+    var li = document.createElement('li');
+    li.textContent = inp.value.trim();
+    li.style.cssText = 'cursor:pointer;display:flex;gap:4px;align-items:center';
+    var del = document.createElement('button');
+    del.textContent = '×'; del.style.cssText = 'font-size:10px;padding:0 3px';
+    del.onclick = function() { li.remove(); };
+    li.appendChild(del);
+    var ul = document.getElementById('msf-arg-list');
+    if (ul) ul.appendChild(li);
+    inp.value = '';
+  };
+}
+
+function collectMsSpec() {
+  var sel = document.getElementById('ms-type');
+  if (!sel) return null;
+  var t = sel.value;
+  if (!t) { showError('Select a step type'); return null; }
+  var spec = { type: t };
+  if (t === 'debug_log') spec.message = document.getElementById('msf-message') ? document.getElementById('msf-message').value : '';
+  else if (t === 'hotkey') {
+    var items = document.querySelectorAll('#msf-key-list li');
+    spec.keys = [];
+    items.forEach(function(li) { spec.keys.push(li.textContent.replace(/×$/, '').trim()); });
+    if (spec.keys.length === 0) { showError('Hotkey requires at least one key'); return null; }
+  }
+  else if (t === 'text') spec.value = document.getElementById('msf-value') ? document.getElementById('msf-value').value : '';
+  else if (t === 'command') {
+    var args = document.querySelectorAll('#msf-arg-list li');
+    spec.argv = [];
+    args.forEach(function(li) { spec.argv.push(li.textContent.replace(/×$/, '').trim()); });
+    if (spec.argv.length === 0) { showError('Command requires at least one argument'); return null; }
+    var to = parseInt(document.getElementById('msf-timeout') ? document.getElementById('msf-timeout').value : 0);
+    if (!isNaN(to) && to > 0) spec.timeout_seconds = to;
+  }
+  else if (t === 'delay') spec.milliseconds = parseInt(document.getElementById('msf-ms') ? document.getElementById('msf-ms').value : 100) || 100;
+  else if (t === 'set_layer') spec.layer = document.getElementById('msf-layer') ? document.getElementById('msf-layer').value : '';
+  else if (t === 'set_profile') spec.profile = document.getElementById('msf-profile') ? document.getElementById('msf-profile').value : '';
+  return spec;
+}
+
+function insertMacroStep(idx, spec) {
   if (!ACTIVE_LAYER || !EDITING_CONTROL) return;
   var cur = ACTIVE_LAYER.controls[EDITING_CONTROL];
   var steps = (cur && cur.steps) ? cur.steps.slice() : [];
-  steps.push(stepSpec);
+  if (idx < 0) idx = 0;
+  if (idx > steps.length) idx = steps.length;
+  steps.splice(idx, 0, spec);
   ACTIVE_LAYER.controls[EDITING_CONTROL] = { type: 'macro', steps: steps };
   renderEditor();
+}
+
+function addMacroStep() {
+  var spec = collectMsSpec();
+  if (!spec) return;
+  insertMacroStep((ACTIVE_LAYER.controls[EDITING_CONTROL]&&ACTIVE_LAYER.controls[EDITING_CONTROL].steps||[]).length, spec);
+}
+
+function editMacroStep(idx) {
+  var cur = ACTIVE_LAYER.controls[EDITING_CONTROL];
+  if (!cur || !cur.steps) return;
+  var old = cur.steps[idx];
+  var sel = document.getElementById('ms-type');
+  if (sel) sel.value = old.type;
+  renderMsFields();
+  // Pre-fill known fields
+  setTimeout(function() {
+    if (old.type==='debug_log'&&old.message) { var m=document.getElementById('msf-message'); if(m)m.value=old.message; }
+    else if (old.type==='hotkey'&&old.keys) { var ul=document.getElementById('msf-key-list'); if(ul){ul.innerHTML='';old.keys.forEach(function(k){var li=document.createElement('li');li.textContent=k+' ';var b=document.createElement('button');b.textContent='×';b.style.cssText='font-size:10px;padding:0 3px';b.onclick=function(){li.remove()};li.appendChild(b);ul.appendChild(li)});} }
+    else if (old.type==='text'&&old.value) { var v=document.getElementById('msf-value'); if(v)v.value=old.value; }
+    else if (old.type==='command'&&old.argv) { var ul2=document.getElementById('msf-arg-list'); if(ul2){ul2.innerHTML='';old.argv.forEach(function(a){var li=document.createElement('li');li.textContent=a+' ';var b=document.createElement('button');b.textContent='×';b.style.cssText='font-size:10px;padding:0 3px';b.onclick=function(){li.remove()};li.appendChild(b);ul2.appendChild(li)});} if(old.timeout_seconds){var ti=document.getElementById('msf-timeout');if(ti)ti.value=old.timeout_seconds;} }
+    else if (old.type==='delay'&&old.milliseconds) { var ms=document.getElementById('msf-ms'); if(ms)ms.value=old.milliseconds; }
+    else if (old.type==='set_layer'&&old.layer) { var sl=document.getElementById('msf-layer'); if(sl)sl.value=old.layer; }
+    else if (old.type==='set_profile'&&old.profile) { var sp=document.getElementById('msf-profile'); if(sp)sp.value=old.profile; }
+  }, 50);
+  showOk('Editing step ' + (idx+1) + '. Change fields and re-add.');
+  // Select existing in typed form — user clicks Add Step to replace
+  var cur2 = ACTIVE_LAYER.controls[EDITING_CONTROL];
+  var steps2 = (cur2 && cur2.steps) ? cur2.steps.slice() : [];
+  steps2.splice(idx, 1);
+  ACTIVE_LAYER.controls[EDITING_CONTROL] = { type: 'macro', steps: steps2 };
+  // The old step is removed; user adds the replacement
+}
+
+function addBeforeMacroStep(idx) {
+  var spec = collectMsSpec();
+  if (!spec) return;
+  insertMacroStep(idx, spec);
+}
+function addAfterMacroStep(idx) {
+  var spec = collectMsSpec();
+  if (!spec) return;
+  insertMacroStep(idx + 1, spec);
+}
+function toggleJsonArea() {
+  var el = document.getElementById('ms-json-area');
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+function addMacroJsonStep() {
+  var raw = document.getElementById('ma-step-json').value;
+  var stepSpec;
+  try { stepSpec = JSON.parse(raw); } catch(e) { showError('Invalid JSON'); return; }
+  if (!stepSpec.type) { showError('Missing type'); return; }
+  insertMacroStep((ACTIVE_LAYER.controls[EDITING_CONTROL]&&ACTIVE_LAYER.controls[EDITING_CONTROL].steps||[]).length, stepSpec);
 }
 function moveMacroStep(idx, dir) {
   if (!ACTIVE_LAYER || !EDITING_CONTROL) return;

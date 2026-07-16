@@ -15,6 +15,12 @@ These commands operate using `yyr4_linux_control.control.config` directly.
 
 *   `validate <path>`: Syntactically and semantically validates a TOML control configuration file.
 *   `list-controls`: Lists all officially supported hardware control names.
+*   `show-config <path>`: Displays a flattened interpretation of a control configuration.
+*   `dry-run <path> <control>`: Mocks the execution of an action mapped to the specified control.
+*   `preview --config <path> --output <path>`: Generate a read-only HTML configuration preview.
+*   `draft create|set-action|clear-action|validate|diff|save ...`: Offline draft editing workflow.
+*   `editor --config SOURCE [--target TARGET] [--backup-dir DIR] [--port 0] [--idle-timeout 1800] [--open-browser]`: Start the local graphical editor.
+*   `list-controls`: Lists all officially supported hardware control names.
 *   `show-config <path>`: Displays a flattened interpretation of a control configuration, with an option to `--show-sensitive` data.
 *   `dry-run <path> <control>`: Mocks the execution of an action mapped to the specified control using `DryRunExecutor` without real side effects.
 
