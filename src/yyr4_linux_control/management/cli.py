@@ -919,12 +919,17 @@ def main():
 
     # ── Editor command ──
     p_editor = subparsers.add_parser("editor")
+    # Accept old-style args directly for backward compatibility
+    p_editor.add_argument("--config", type=str, default=None)
+    p_editor.add_argument("--target", type=str, default=None)
+    p_editor.add_argument("--backup-dir", type=str, default=None)
+    p_editor.add_argument("--port", type=int, default=0)
+    p_editor.add_argument("--idle-timeout", type=int, default=1800)
+    p_editor.add_argument("--open-browser", action="store_true")
     edit_subs = p_editor.add_subparsers(dest="editor_command")
     e_start = edit_subs.add_parser("start")
-    e_start.add_argument("--config", required=True,
-                         help="Schema v2 configuration to edit")
-    e_start.add_argument("--target", type=str, default=None,
-                         help="Save target path (default: same as config)")
+    e_start.add_argument("--config", required=True)
+    e_start.add_argument("--target", type=str, default=None)
     e_start.add_argument("--backup-dir", type=str, default=None)
     e_start.add_argument("--port", type=int, default=0)
     e_start.add_argument("--idle-timeout", type=int, default=1800)

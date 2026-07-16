@@ -43,7 +43,7 @@ class TestSessionManagement(unittest.TestCase):
         from yyr4_linux_control.configurator.web.session import get_recovery
         self.assertTrue(callable(get_recovery))
 
-    def test_discard_recovery_importable(self):
+    def testdiscard_recovery_importable(self):
         from yyr4_linux_control.configurator.web.session import discard_recovery
         self.assertTrue(callable(discard_recovery))
 
@@ -51,13 +51,13 @@ class TestSessionManagement(unittest.TestCase):
         from yyr4_linux_control.configurator.web.session import EditorSession
         self.assertTrue(hasattr(EditorSession, 'shutdown_clean'))
 
-    def test_write_recovery_exists(self):
+    def testwrite_recovery_exists(self):
         from yyr4_linux_control.configurator.web.session import EditorSession
-        self.assertTrue(hasattr(EditorSession, '_write_recovery'))
+        self.assertTrue(hasattr(EditorSession, 'write_recovery'))
 
-    def test_discard_recovery_method_exists(self):
+    def testdiscard_recovery_method_exists(self):
         from yyr4_linux_control.configurator.web.session import EditorSession
-        self.assertTrue(hasattr(EditorSession, '_discard_recovery'))
+        self.assertTrue(hasattr(EditorSession, 'discard_recovery'))
 
 
 class TestAccessibilityUI(unittest.TestCase):

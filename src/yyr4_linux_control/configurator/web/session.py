@@ -1,22 +1,18 @@
-"""Editor session: Draft lifecycle, sidecar, token, recovery, and cleanup.
+"""M5.4-A Session: Bootstrap/Cookie/CSRF auth, active registry, crash-safe recovery."""
 
-M5.4: Adds crash recovery manifests, bootstrap token stubs,
-and resource limit constants.
-"""
-
-from __future__ import annotations
-import os, json, secrets, shutil, time, hashlib
+import os, json, secrets, shutil, time, hashlib, signal, tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
-
-from yyr4_linux_control.configurator.draft import ConfigDraft
-from yyr4_linux_control.configurator.sidecar import write_sidecar, read_sidecar
 
 
 RECOVERY_BASE_DIR = os.path.join(
     os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")),
     "yyr4", "editor-recovery",
+)
+_SESSIONS_DIR = os.path.join(
+    os.environ.get("XDG_RUNTIME_DIR", tempfile.gettempdir()),
+    "yyr4", "editor", "sessions",
 )
 
 MAX_PROFILES = 32
@@ -25,48 +21,58 @@ MAX_MACRO_STEPS = 100
 MAX_COMMAND_ARGV = 64
 MAX_TEXT_LENGTH = 4096
 MAX_JSON_DEPTH = 12
+MAX_URL_LENGTH = 2048
+MAX_HEADER_BYTES = 16384
+MAX_CONCURRENT_CONNECTIONS = 16
+RATE_LIMIT_REQUESTS = 120
+RATE_LIMIT_WINDOW = 60
+REQUEST_TIMEOUT = 30
 
 
 @dataclass
 class EditorSession:
-    """Single-use editor session with token-gated access and recovery."""
-
     session_id: str
-    session_token: str
-    source_path: str
-    target_path: str
-    backup_dir: Optional[str]
-    session_dir: str
-    draft_path: str
-    base_sha256: str
-    draft: ConfigDraft
+    session_token: str          # backward compatible URL token
+    bootstrap_token: str = ""   # one-time bootstrap (M5.4-A)
+    session_cookie: str = ""    # session cookie value
+    csrf_token: str = ""        # X-YYR4-CSRF-Token
+    bootstrap_used: bool = False
+    pid: int = field(default_factory=os.getpid)
+    port: int = 0
+    source_path: str = ""
+    target_path: str = ""
+    backup_dir: Optional[str] = None
+    session_dir: str = ""
+    draft_path: str = ""
+    base_sha256: str = ""
+    draft: Optional["ConfigDraft"] = None  # type: ignore
     created_at: float = field(default_factory=time.time)
     last_activity: float = field(default_factory=time.time)
     _reviewed_mutation: int = -1
     _shutdown: bool = False
     _recovery_id: Optional[str] = None
-
-    _version = "1.0.0"
+    _version: str = "1.0.0"
 
     @property
     def draft_sha256(self) -> str:
+        from yyr4_linux_control.configurator.sidecar import read_sidecar
         sc = read_sidecar(Path(self.draft_path))
         return sc["draft_sha256"]
 
     @property
     def dirty(self) -> bool:
-        return self.draft.dirty
+        return self.draft.dirty if self.draft else False
 
     @property
     def mutation_count(self) -> int:
-        return self.draft.mutation_count
+        return self.draft.mutation_count if self.draft else 0
 
     @property
     def reviewed(self) -> bool:
-        return self._reviewed_mutation == self.draft.mutation_count
+        return self._reviewed_mutation == self.mutation_count
 
     def mark_reviewed(self) -> None:
-        self._reviewed_mutation = self.draft.mutation_count
+        self._reviewed_mutation = self.mutation_count
 
     def touch(self) -> None:
         self.last_activity = time.time()
@@ -74,30 +80,32 @@ class EditorSession:
     def is_expired(self, idle_timeout: float) -> bool:
         return (time.time() - self.last_activity) > idle_timeout
 
-    def shutdown(self) -> None:
-        """Cleanup, preserving dirty drafts as recovery."""
-        if self._shutdown:
-            return
-        self._shutdown = True
-        if self.dirty and self.draft:
-            self._write_recovery()
-        try:
-            shutil.rmtree(self.session_dir, ignore_errors=True)
-        except OSError:
-            pass
+    def write_registry(self) -> None:
+        d = Path(_SESSIONS_DIR)
+        d.mkdir(parents=True, exist_ok=True)
+        os.chmod(str(d), 0o700)
+        r = {
+            "registry_version": 1, "session_id": self.session_id,
+            "pid": self.pid, "port": self.port,
+            "source": os.path.basename(self.source_path),
+            "target": os.path.basename(self.target_path),
+            "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(self.created_at)),
+            "last_activity": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(self.last_activity)),
+            "dirty": self.dirty, "mutation_count": self.mutation_count,
+            "recovery_id": self._recovery_id,
+        }
+        p = d / f"{self.session_id}.json"
+        p.write_text(json.dumps(r, indent=2))
+        os.chmod(str(p), 0o600)
 
-    def shutdown_clean(self) -> None:
-        """Shutdown without creating recovery."""
-        self._discard_recovery()
-        self._shutdown = True
-        try:
-            shutil.rmtree(self.session_dir, ignore_errors=True)
-        except OSError:
-            pass
+    def _remove_registry(self) -> None:
+        p = Path(_SESSIONS_DIR) / f"{self.session_id}.json"
+        try: p.unlink(missing_ok=True)
+        except OSError: pass
 
-    def _write_recovery(self) -> None:
-        """Persist recovery manifest for crash recovery."""
-        if not self.draft:
+    def write_recovery(self) -> None:
+        """Crash-safe: persist after every mutation."""
+        if not self.draft or not self.dirty:
             return
         rid = self._recovery_id or secrets.token_hex(12)
         self._recovery_id = rid
@@ -128,53 +136,56 @@ class EditorSession:
         }
         p = rdir / "manifest.json"; p.write_text(json.dumps(mf, indent=2)); os.chmod(str(p), 0o600)
 
-    def _discard_recovery(self) -> None:
+    def discard_recovery(self) -> None:
         if self._recovery_id:
             shutil.rmtree(str(Path(RECOVERY_BASE_DIR) / self._recovery_id), ignore_errors=True)
+            self._recovery_id = None
+
+    def shutdown(self, policy: str = "keep_recovery") -> None:
+        if self._shutdown: return
+        self._shutdown = True
+        if policy == "keep_recovery" and self.dirty:
+            self.write_recovery()
+        elif policy == "discard":
+            self.discard_recovery()
+        self._remove_registry()
+        try: shutil.rmtree(self.session_dir, ignore_errors=True)
+        except OSError: pass
+
+    def shutdown_clean(self) -> None:
+        self.shutdown(policy="discard")
 
     def refresh_base(self) -> None:
-        """After a successful save, update the base so subsequent diffs are correct."""
         from yyr4_linux_control.control.config import load_control_config_from_file
         from yyr4_linux_control.configurator.serializer import serialize
-        import hashlib
-
+        from yyr4_linux_control.configurator.sidecar import write_sidecar
+        from yyr4_linux_control.configurator.draft import ConfigDraft
         new_config = load_control_config_from_file(Path(self.target_path))
         new_sha = hashlib.sha256(serialize(new_config).encode()).hexdigest()
         self.base_sha256 = new_sha
         self.draft = ConfigDraft(Path(self.target_path))
-        # Rewrite sidecar to reflect new base
-        draft_sha = hashlib.sha256(
-            serialize(self.draft.working_config).encode()
-        ).hexdigest()
+        draft_sha = hashlib.sha256(serialize(self.draft.working_config).encode()).hexdigest()
         write_sidecar(Path(self.draft_path), self.target_path, new_sha, draft_sha, 0)
         self._reviewed_mutation = -1
-        self._discard_recovery()
+        self.discard_recovery()
 
 
-def create_session(
-    source_path: str,
-    target_path: str,
-    backup_dir: Optional[str] = None,
-) -> EditorSession:
-    """Create a new editor session with isolated working directory."""
+def create_session(source_path: str, target_path: str,
+                   backup_dir: Optional[str] = None) -> EditorSession:
+    from yyr4_linux_control.configurator.draft import ConfigDraft
+    from yyr4_linux_control.configurator.serializer import serialize
+    from yyr4_linux_control.configurator.sidecar import write_sidecar
 
-    # Validate source is a schema v2 config
     source = Path(source_path).resolve()
     if not source.is_file():
         raise FileNotFoundError(f"Source config not found: {source_path}")
-
-    # Create session directory
     runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
     if runtime_dir:
         session_parent = Path(runtime_dir) / "yyr4" / "editor"
     else:
-        import tempfile
         session_parent = Path(tempfile.mkdtemp(prefix="yyr4-editor-"))
-
     session_parent.mkdir(parents=True, exist_ok=True)
     os.chmod(str(session_parent), 0o700)
-
-    # Reject if session_parent is a symlink
     if session_parent.is_symlink():
         raise OSError(f"Session directory is a symlink: {session_parent}")
 
@@ -187,36 +198,31 @@ def create_session(
         raise OSError(f"Session directory resolved to a symlink: {session_dir}")
 
     session_token = secrets.token_urlsafe(32)
+    bootstrap_token = secrets.token_urlsafe(32)
+    session_cookie = secrets.token_urlsafe(32)
+    csrf_token = secrets.token_hex(24)
 
-    # Create draft
     draft = ConfigDraft(source)
     base_sha = draft.base_sha256
-
-    # Draft file inside session directory
     draft_path = session_dir / "draft.toml"
-
-    # Serialize and write draft
-    from yyr4_linux_control.configurator.serializer import serialize
-    import hashlib
-
     text = serialize(draft.working_config)
     draft_path.write_text(text, encoding="utf-8")
     os.chmod(str(draft_path), 0o600)
-
     draft_sha = hashlib.sha256(text.encode()).hexdigest()
     write_sidecar(draft_path, str(source), base_sha, draft_sha, 0)
 
-    return EditorSession(
-        session_id=session_id,
-        session_token=session_token,
+    s = EditorSession(
+        session_id=session_id, session_token=session_token,
+        bootstrap_token=bootstrap_token, session_cookie=session_cookie,
+        csrf_token=csrf_token,
         source_path=str(source),
         target_path=str(Path(target_path).resolve()),
         backup_dir=str(Path(backup_dir).resolve()) if backup_dir else None,
-        session_dir=str(session_dir),
-        draft_path=str(draft_path),
-        base_sha256=base_sha,
-        draft=draft,
+        session_dir=str(session_dir), draft_path=str(draft_path),
+        base_sha256=base_sha, draft=draft,
     )
+    s.write_registry()
+    return s
 
 
 def list_recoveries() -> list:
@@ -230,7 +236,7 @@ def list_recoveries() -> list:
             except: pass
     return results
 
-def get_recovery(rid: str) -> dict | None:
+def get_recovery(rid: str) -> Optional[dict]:
     mf = Path(RECOVERY_BASE_DIR) / rid / "manifest.json"
     if not mf.is_file(): return None
     return json.loads(mf.read_text())
@@ -240,3 +246,40 @@ def discard_recovery(rid: str) -> bool:
     if not rdir.is_dir(): return False
     shutil.rmtree(str(rdir), ignore_errors=True)
     return True
+
+def list_sessions() -> list:
+    d = Path(_SESSIONS_DIR)
+    if not d.is_dir(): return []
+    results = []
+    for f in sorted(d.iterdir()):
+        if f.suffix == ".json":
+            try:
+                r = json.loads(f.read_text())
+                r["stale"] = _is_stale(r)
+                results.append(r)
+            except: pass
+    return results
+
+def _is_stale(r: dict) -> bool:
+    pid = r.get("pid", 0)
+    if pid == 0: return True
+    try:
+        os.kill(pid, 0)
+        proc_uid = os.stat(f"/proc/{pid}").st_uid
+        return proc_uid != os.getuid()
+    except OSError:
+        return True
+
+def resume_session(rid: str, target_path: str,
+                   backup_dir: Optional[str] = None) -> EditorSession:
+    rdir = Path(RECOVERY_BASE_DIR) / rid
+    mf = rdir / "manifest.json"
+    if not mf.is_file():
+        raise FileNotFoundError(f"Recovery {rid} not found")
+    manifest = json.loads(mf.read_text())
+    if manifest.get("recovery_version") != 1:
+        raise ValueError(f"Unknown recovery version: {manifest.get('recovery_version')}")
+    s = create_session(
+        manifest.get("source", ""), target_path or manifest.get("target", ""), backup_dir,
+    )
+    return s

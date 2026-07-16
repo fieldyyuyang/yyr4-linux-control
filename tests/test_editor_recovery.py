@@ -80,7 +80,7 @@ class TestEditorRecovery(unittest.TestCase):
         for rec in recs:
             discard_recovery(rec["recovery_id"])
 
-    def test_discard_recovery(self):
+    def testdiscard_recovery(self):
         from yyr4_linux_control.configurator.web.api import handle_set_action
         from yyr4_linux_control.configurator.web.session import list_recoveries, discard_recovery
         s = self._session()
