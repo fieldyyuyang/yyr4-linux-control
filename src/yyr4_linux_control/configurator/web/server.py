@@ -190,6 +190,18 @@ class _EditorHandler(BaseHTTPRequestHandler):
         except Exception:
             return None
 
+        # Explicit duplicate detection: each yyr4_session_* cookie must appear at most once
+        pairs = [p.strip() for p in cookie_header.split(';')]
+        counts = {}
+        for p in pairs:
+            if '=' in p:
+                k = p.split('=')[0].strip()
+                counts[k] = counts.get(k, 0) + 1
+        for s in self.server._sessions.values():
+            cname = f"yyr4_session_{s.public_session_id}"
+            if counts.get(cname, 0) > 1:
+                return None  # Duplicate cookie
+
         # Extract session ID from path: /s/<public_session_id>/...
         pub_id = None
         for s in self.server._sessions.values():
@@ -274,12 +286,6 @@ class _EditorHandler(BaseHTTPRequestHandler):
             self._send_error("unauthorized", 401)
             return
         session.touch()
-
-        # Update cookie Max-Age on activity
-        remaining = max(1, int(self.server._idle_timeout - (time.time() - session.last_activity)))
-        cname = f"yyr4_session_{session.public_session_id}"
-        ck_up = f"{cname}={session.session_cookie}; HttpOnly; SameSite=Strict; Path=/s/{session.public_session_id}/; Max-Age={remaining}"
-        self.send_header("Set-Cookie", ck_up)
 
         # Build path relative to /s/<pubid>/
         rel = bp[2:] if len(bp) >= 3 else []
