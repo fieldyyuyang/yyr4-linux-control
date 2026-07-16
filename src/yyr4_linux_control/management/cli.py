@@ -599,7 +599,33 @@ def cmd_preview(args):
     sys.exit(EXIT_SUCCESS)
 
 
-def cmd_editor(args):
+def cmd_editor_dispatch(args):
+    """Dispatch editor subcommands: start, status, stop, recover."""
+    cmd = getattr(args, 'editor_command', None)
+    rec_cmd = getattr(args, 'recover_command', None)
+    if rec_cmd:
+        cmd = rec_cmd  # recover subcommands take priority
+
+    if not cmd or cmd == "start":
+        cmd_editor_start(args)
+    elif cmd == "status":
+        cmd_editor_status(args)
+    elif cmd == "stop":
+        cmd_editor_stop(args)
+    elif cmd == "list":
+        cmd_editor_recover_list(args)
+    elif cmd == "inspect":
+        cmd_editor_recover_inspect(args)
+    elif cmd == "resume":
+        cmd_editor_recover_resume(args)
+    elif cmd == "discard":
+        cmd_editor_recover_discard(args)
+    else:
+        eprint(f"Unknown editor subcommand: {cmd}")
+        sys.exit(EXIT_ARGS)
+
+
+def cmd_editor_start(args):
     """Start the interactive local graphical configuration editor."""
     from yyr4_linux_control.configurator.web.server import EditorServer
 
@@ -636,6 +662,110 @@ def cmd_editor(args):
         print("\nShutting down editor...")
         server.stop()
         sys.exit(EXIT_SUCCESS)
+
+
+def cmd_editor_status(args):
+    """List running editor sessions for current user."""
+    from yyr4_linux_control.configurator.web.session import RECOVERY_BASE_DIR
+    from pathlib import Path
+    recs = []
+    base = Path(RECOVERY_BASE_DIR)
+    if base.is_dir():
+        import json
+        for entry in sorted(base.iterdir()):
+            mf = entry / "manifest.json"
+            if mf.is_file():
+                try: recs.append(json.loads(mf.read_text()))
+                except: pass
+    print(f"Active recoveries: {len(recs)}")
+    for r in recs:
+        print(f"  {r.get('recovery_id','?')[:12]}  dirty={r.get('dirty')}  "
+              f"mutations={r.get('mutation_count',0)}  "
+              f"source={r.get('source','?')}")
+    sys.exit(EXIT_SUCCESS)
+
+
+def cmd_editor_stop(args):
+    """Stop a running editor session by session ID."""
+    sid = args.session_id
+    from yyr4_linux_control.configurator.web.session import list_recoveries, discard_recovery
+    recs = list_recoveries()
+    found = [r for r in recs if r.get('recovery_id','').startswith(sid)]
+    if not found:
+        eprint(f"No session found matching: {sid}")
+        sys.exit(EXIT_CONFIG)
+    for r in found:
+        discard = getattr(args, 'discard_draft', False)
+        rid = r['recovery_id']
+        if discard or not r.get('dirty'):
+            discard_recovery(rid)
+            print(f"Session {rid[:12]} stopped (draft discarded)")
+        else:
+            print(f"Session {rid[:12]} recovery preserved (dirty=True)")
+    sys.exit(EXIT_SUCCESS)
+
+
+def cmd_editor_recover_list(args):
+    """List recoverable sessions."""
+    from yyr4_linux_control.configurator.web.session import list_recoveries
+    recs = list_recoveries()
+    if not recs:
+        print("No recoverable sessions found.")
+    for r in recs:
+        import json
+        print(json.dumps(r, indent=2))
+    sys.exit(EXIT_SUCCESS)
+
+
+def cmd_editor_recover_inspect(args):
+    """Inspect a specific recovery."""
+    from yyr4_linux_control.configurator.web.session import get_recovery
+    import json
+    r = get_recovery(args.recovery_id)
+    if not r:
+        eprint(f"Recovery not found: {args.recovery_id}")
+        sys.exit(EXIT_CONFIG)
+    print(json.dumps(r, indent=2))
+    sys.exit(EXIT_SUCCESS)
+
+
+def cmd_editor_recover_resume(args):
+    """Resume editing from a recovery."""
+    from yyr4_linux_control.configurator.web.session import resume_session
+    from yyr4_linux_control.configurator.web.server import EditorServer
+    target = args.target if args.target else args.config
+    try:
+        session = resume_session(args.recovery_id, target, None)
+        server = EditorServer(
+            source_path=args.config, target_path=target,
+            port=args.port, idle_timeout=args.idle_timeout,
+            open_browser=False,
+        )
+        server._session = session
+        server._port = args.port
+        url = server.start()
+    except Exception as e:
+        eprint(f"Recovery failed: {e}")
+        sys.exit(EXIT_CONFIG)
+    try:
+        print("Press Ctrl+C to stop the editor.")
+        while True:
+            import time; time.sleep(1)
+    except KeyboardInterrupt:
+        print("\nShutting down editor...")
+        server.stop()
+        sys.exit(EXIT_SUCCESS)
+
+
+def cmd_editor_recover_discard(args):
+    """Discard a recovery."""
+    from yyr4_linux_control.configurator.web.session import discard_recovery
+    if discard_recovery(args.recovery_id):
+        print(f"Recovery {args.recovery_id} discarded.")
+    else:
+        eprint(f"Recovery not found: {args.recovery_id}")
+        sys.exit(EXIT_CONFIG)
+    sys.exit(EXIT_SUCCESS)
 
 
 def cmd_context_command(args):
@@ -789,18 +919,33 @@ def main():
 
     # ── Editor command ──
     p_editor = subparsers.add_parser("editor")
-    p_editor.add_argument("--config", required=True,
-                          help="Schema v2 configuration to edit")
-    p_editor.add_argument("--target", type=str, default=None,
-                          help="Save target path (default: same as config)")
-    p_editor.add_argument("--backup-dir", type=str, default=None,
-                          help="Optional backup directory")
-    p_editor.add_argument("--port", type=int, default=0,
-                          help="TCP port (0 = OS-assigned ephemeral)")
-    p_editor.add_argument("--idle-timeout", type=int, default=1800,
-                          help="Idle timeout in seconds (default: 1800)")
-    p_editor.add_argument("--open-browser", action="store_true",
-                          help="Open the system browser after starting")
+    edit_subs = p_editor.add_subparsers(dest="editor_command")
+    e_start = edit_subs.add_parser("start")
+    e_start.add_argument("--config", required=True,
+                         help="Schema v2 configuration to edit")
+    e_start.add_argument("--target", type=str, default=None,
+                         help="Save target path (default: same as config)")
+    e_start.add_argument("--backup-dir", type=str, default=None)
+    e_start.add_argument("--port", type=int, default=0)
+    e_start.add_argument("--idle-timeout", type=int, default=1800)
+    e_start.add_argument("--open-browser", action="store_true")
+    e_status = edit_subs.add_parser("status")
+    e_stop = edit_subs.add_parser("stop")
+    e_stop.add_argument("--session-id", required=True)
+    e_stop.add_argument("--discard-draft", action="store_true")
+    e_recover = edit_subs.add_parser("recover")
+    rec_subs = e_recover.add_subparsers(dest="recover_command")
+    rl = rec_subs.add_parser("list")
+    ri = rec_subs.add_parser("inspect")
+    ri.add_argument("--recovery-id", required=True)
+    rr = rec_subs.add_parser("resume")
+    rr.add_argument("--recovery-id", required=True)
+    rr.add_argument("--config", required=True)
+    rr.add_argument("--target", type=str, default=None)
+    rr.add_argument("--port", type=int, default=0)
+    rr.add_argument("--idle-timeout", type=int, default=1800)
+    rd = rec_subs.add_parser("discard")
+    rd.add_argument("--recovery-id", required=True)
 
     args = parser.parse_args()
 
@@ -827,4 +972,4 @@ def main():
         cmd_draft_dispatch(args)
 
     elif args.command == "editor":
-        cmd_editor(args)
+        cmd_editor_dispatch(args)

@@ -28,7 +28,7 @@ class TestEditorCLI(unittest.TestCase):
             extra_args = []
         cmd = (
             "import sys; sys.argv=['yyr4ctl','editor',"
-            f"'--config','{self.src}',"
+            f"'start','--config','{self.src}',"
             f"'--target','{os.path.join(self.tmp, 'target.toml')}',"
             f"'--idle-timeout','3'"
         )
@@ -59,7 +59,7 @@ class TestEditorCLI(unittest.TestCase):
     def test_cli_help(self):
         r = subprocess.run(
             [sys.executable, "-c",
-             "import sys; sys.argv=['yyr4ctl','editor','--help']; "
+             "import sys; sys.argv=['yyr4ctl','editor','start','--help']; "
              "from yyr4_linux_control.management.cli import main; main()"],
             env=self._env(), capture_output=True, text=True, timeout=15,
         )

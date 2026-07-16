@@ -1,10 +1,11 @@
-"""Editor session: Draft lifecycle, sidecar, token, and cleanup."""
+"""Editor session: Draft lifecycle, sidecar, token, recovery, and cleanup.
+
+M5.4: Adds crash recovery manifests, bootstrap token stubs,
+and resource limit constants.
+"""
 
 from __future__ import annotations
-import os
-import secrets
-import shutil
-import time
+import os, json, secrets, shutil, time, hashlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -13,9 +14,22 @@ from yyr4_linux_control.configurator.draft import ConfigDraft
 from yyr4_linux_control.configurator.sidecar import write_sidecar, read_sidecar
 
 
+RECOVERY_BASE_DIR = os.path.join(
+    os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")),
+    "yyr4", "editor-recovery",
+)
+
+MAX_PROFILES = 32
+MAX_LAYERS = 16
+MAX_MACRO_STEPS = 100
+MAX_COMMAND_ARGV = 64
+MAX_TEXT_LENGTH = 4096
+MAX_JSON_DEPTH = 12
+
+
 @dataclass
 class EditorSession:
-    """Single-use editor session with token-gated access."""
+    """Single-use editor session with token-gated access and recovery."""
 
     session_id: str
     session_token: str
@@ -30,6 +44,9 @@ class EditorSession:
     last_activity: float = field(default_factory=time.time)
     _reviewed_mutation: int = -1
     _shutdown: bool = False
+    _recovery_id: Optional[str] = None
+
+    _version = "1.0.0"
 
     @property
     def draft_sha256(self) -> str:
@@ -58,14 +75,62 @@ class EditorSession:
         return (time.time() - self.last_activity) > idle_timeout
 
     def shutdown(self) -> None:
-        """Idempotent cleanup of session directory."""
+        """Cleanup, preserving dirty drafts as recovery."""
         if self._shutdown:
             return
+        self._shutdown = True
+        if self.dirty and self.draft:
+            self._write_recovery()
+        try:
+            shutil.rmtree(self.session_dir, ignore_errors=True)
+        except OSError:
+            pass
+
+    def shutdown_clean(self) -> None:
+        """Shutdown without creating recovery."""
+        self._discard_recovery()
         self._shutdown = True
         try:
             shutil.rmtree(self.session_dir, ignore_errors=True)
         except OSError:
             pass
+
+    def _write_recovery(self) -> None:
+        """Persist recovery manifest for crash recovery."""
+        if not self.draft:
+            return
+        rid = self._recovery_id or secrets.token_hex(12)
+        self._recovery_id = rid
+        rdir = Path(RECOVERY_BASE_DIR) / rid
+        rdir.mkdir(parents=True, exist_ok=True)
+        os.chmod(str(rdir), 0o700)
+        dp = Path(self.draft_path)
+        sp = Path(str(self.draft_path) + ".yyr4-draft.json")
+        if dp.is_file():
+            shutil.copy2(str(dp), str(rdir / "draft.toml"))
+            os.chmod(str(rdir / "draft.toml"), 0o600)
+        if sp.is_file():
+            shutil.copy2(str(sp), str(rdir / "draft.toml.yyr4-draft.json"))
+            os.chmod(str(rdir / "draft.toml.yyr4-draft.json"), 0o600)
+        v = self.draft.validate()
+        mf = {
+            "recovery_version": 1, "recovery_id": rid,
+            "source": os.path.basename(self.source_path),
+            "target": os.path.basename(self.target_path),
+            "base_sha256": self.base_sha256,
+            "draft_sha256": self.draft_sha256,
+            "mutation_count": self.mutation_count,
+            "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(self.created_at)),
+            "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(self.last_activity)),
+            "valid": v.valid, "errors": [e.message for e in v.errors],
+            "dirty": self.dirty, "reviewed_mutation": self._reviewed_mutation,
+            "application_version": self._version,
+        }
+        p = rdir / "manifest.json"; p.write_text(json.dumps(mf, indent=2)); os.chmod(str(p), 0o600)
+
+    def _discard_recovery(self) -> None:
+        if self._recovery_id:
+            shutil.rmtree(str(Path(RECOVERY_BASE_DIR) / self._recovery_id), ignore_errors=True)
 
     def refresh_base(self) -> None:
         """After a successful save, update the base so subsequent diffs are correct."""
@@ -83,6 +148,7 @@ class EditorSession:
         ).hexdigest()
         write_sidecar(Path(self.draft_path), self.target_path, new_sha, draft_sha, 0)
         self._reviewed_mutation = -1
+        self._discard_recovery()
 
 
 def create_session(
@@ -151,3 +217,26 @@ def create_session(
         base_sha256=base_sha,
         draft=draft,
     )
+
+
+def list_recoveries() -> list:
+    base = Path(RECOVERY_BASE_DIR)
+    if not base.is_dir(): return []
+    results = []
+    for entry in sorted(base.iterdir()):
+        mf = entry / "manifest.json"
+        if mf.is_file():
+            try: results.append(json.loads(mf.read_text()))
+            except: pass
+    return results
+
+def get_recovery(rid: str) -> dict | None:
+    mf = Path(RECOVERY_BASE_DIR) / rid / "manifest.json"
+    if not mf.is_file(): return None
+    return json.loads(mf.read_text())
+
+def discard_recovery(rid: str) -> bool:
+    rdir = Path(RECOVERY_BASE_DIR) / rid
+    if not rdir.is_dir(): return False
+    shutil.rmtree(str(rdir), ignore_errors=True)
+    return True
