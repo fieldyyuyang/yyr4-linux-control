@@ -105,3 +105,13 @@ def count_test_pids():
     import subprocess
     r = subprocess.run(["pgrep", "-f", "yyr4_linux_control"], capture_output=True, text=True)
     return len([l for l in (r.stdout or "").split("\n") if l.strip()])
+
+
+
+def get_session_id_for_pid(pid):
+    """Find session_id in registry for a given PID."""
+    from yyr4_linux_control.configurator.web.session import list_sessions
+    for ses in list_sessions():
+        if ses.get("pid") == pid:
+            return ses.get("session_id", "")
+    return ""

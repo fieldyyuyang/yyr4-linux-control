@@ -533,6 +533,7 @@ class EditorServer:
         else:
             print(f"  Open this URL in your browser to start editing.", flush=True)
 
+        self._exit_event = threading.Event()
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
         return url
@@ -586,6 +587,7 @@ class EditorServer:
     def _control_shutdown(self, policy: str) -> None:
         self._session.shutdown(policy=policy)
         self._shutdown()
+        self._exit_event.set()
 
     def stop(self):
         if self._httpd:

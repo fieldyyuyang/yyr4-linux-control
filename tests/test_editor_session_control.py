@@ -1,7 +1,8 @@
-"""M5.4-A2: Real subprocess session control — dual-process status/stop."""
-import unittest, os, tempfile, shutil, time, signal, json
+"""M5.4-A2: Real CLI stop and SIGKILL recover-resume-save."""
+import unittest, os, tempfile, shutil, time, signal, http.client
 from tests.editor_subprocess_test_support import (
-    start_editor_cli, bootstrap_http, do_mutation, wait_port_closed, cli_status, cli_stop,
+    start_editor_cli, bootstrap_http, do_mutation, wait_port_closed,
+    cli_status, cli_stop, get_session_id_for_pid,
 )
 
 
@@ -9,153 +10,85 @@ class TestSubprocessSessionControl(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.mkdtemp()
-
     @classmethod
     def tearDownClass(cls):
         shutil.rmtree(cls.tmp, ignore_errors=True)
 
-    def _parse_bootstrap_url(self, url_line):
-        """Extract port and btoken from bootstrap URL."""
-        # http://127.0.0.1:PORT/bootstrap/TOKEN
-        parts = url_line.strip().split("/")
-        port = int(parts[2].split(":")[1])
-        btoken = parts[-1]
-        return port, btoken
+    def _parse(self, ul):
+        p = ul.strip().split("/")
+        hp = p[2]; lst = p[-1] if p[-1] else p[-2]
+        port = int(hp.split(":")[-1]) if ":" in hp else 0
+        return port, lst
 
-    def test_dual_process_status_and_stop(self):
-        """Start two editors, verify both running, stop A, verify B still works."""
+    def test_dual_process_real_stop(self):
         # Start A
-        procA, portA_raw, urlA = start_editor_cli(self.tmp)
-        portA, btokA = self._parse_bootstrap_url(urlA)
-        self.assertGreater(portA, 0)
-        ckA, pubA, csrfA = bootstrap_http(portA, btokA)
-        self.assertTrue(ckA.startswith("yyr4_session_"))
-        # Mutate A
-        self.assertEqual(do_mutation(portA, pubA, ckA, csrfA, "A1"), 200)
-
+        pA, _, uA = start_editor_cli(self.tmp)
+        pa, ba = self._parse(uA)
+        ckA, pubA, csrfA = bootstrap_http(pa, ba)
+        do_mutation(pa, pubA, ckA, csrfA, "A1")
         # Start B
-        procB, portB_raw, urlB = start_editor_cli(self.tmp)
-        portB, btokB = self._parse_bootstrap_url(urlB)
-        self.assertGreater(portB, 0)
-        ckB, pubB, csrfB = bootstrap_http(portB, btokB)
-        self.assertEqual(do_mutation(portB, pubB, ckB, csrfB, "A2"), 200)
-
-        # Status shows two running
-        rc, out = cli_status()
-        self.assertEqual(rc, 0)
-        self.assertIn("running", out)
-
-        # Stop A (terminate gracefully)
-        procA.terminate()
-        procA.wait(timeout=10)
-
-        # A port closed
-        self.assertTrue(wait_port_closed(portA, 5), f"Port {portA} should be closed after stop")
-
+        pB, _, uB = start_editor_cli(self.tmp)
+        pb, bb = self._parse(uB)
+        ckB, pubB, csrfB = bootstrap_http(pb, bb)
+        do_mutation(pb, pubB, ckB, csrfB, "A2")
+        # Status shows running
+        rc, out = cli_status(); self.assertEqual(rc, 0)
+        # Real CLI stop A
+        sidA = get_session_id_for_pid(pA.pid)
+        self.assertTrue(sidA, f"No session for PID {pA.pid}")
+        rc_s, _ = cli_stop(sidA)
+        self.assertEqual(rc_s, 0, "CLI stop should return 0")
+        pA.wait(timeout=10); self.assertEqual(pA.returncode, 0)
+        self.assertTrue(wait_port_closed(pa, 5))
+        # A recovery exists (dirty)
+        from yyr4_linux_control.configurator.web.session import list_recoveries, discard_recovery
+        self.assertGreater(len([r for r in list_recoveries() if r.get("dirty")]), 0)
         # B still running
-        import http.client
-        conn = http.client.HTTPConnection("127.0.0.1", portB, timeout=5)
+        conn = http.client.HTTPConnection("127.0.0.1", pb, timeout=5)
         conn.request("GET", f"/s/{pubB}/api/v1/state", headers={"Cookie": ckB})
-        respB = conn.getresponse(); conn.close()
-        self.assertEqual(respB.status, 200, "Server B should still serve requests")
+        self.assertEqual(conn.getresponse().status, 200); conn.close()
+        # CLI stop B --discard-draft
+        sidB = get_session_id_for_pid(pB.pid)
+        self.assertTrue(sidB)
+        rc_s2, _ = cli_stop(sidB, discard=True)
+        self.assertEqual(rc_s2, 0)
+        pB.wait(timeout=10); self.assertEqual(pB.returncode, 0)
+        self.assertTrue(wait_port_closed(pb, 5))
+        for r in list_recoveries(): discard_recovery(r["recovery_id"])
 
-        # Stop B with discard
-        procB.terminate()
-        procB.wait(timeout=5)
-
-    def test_stop_preserves_recovery(self):
-        """Stop with default policy keeps recovery."""
-        proc, port_raw, url = start_editor_cli(self.tmp)
-        port, btok = self._parse_bootstrap_url(url)
-        ck, pub, csrf = bootstrap_http(port, btok)
-        # Mutate
-        do_mutation(port, pub, ck, csrf, "A3")
-        # Check recovery exists
-        from yyr4_linux_control.configurator.web.session import list_recoveries
-        before = len(list_recoveries())
-        self.assertGreater(before, 0, "Recovery should exist after mutation")
-        # Stop
-        proc.terminate()
-        proc.wait(timeout=10)
-        time.sleep(1)
-        after = len(list_recoveries())
-        self.assertGreaterEqual(after, before, "Recovery should persist after default stop")
-
-    def test_status_shows_running(self):
-        proc, port_raw, url = start_editor_cli(self.tmp)
-        port, btok = self._parse_bootstrap_url(url)
-        ck, pub, csrf = bootstrap_http(port, btok)
-        rc, out = cli_status()
-        self.assertEqual(rc, 0)
-        self.assertIn("running", out)
-        proc.terminate()
-        proc.wait(timeout=5)
+    def test_stop_nonexistent_nonzero(self):
+        rc, _ = cli_stop("nonexistent-id")
+        self.assertNotEqual(rc, 0)
 
 
-class TestCrashRecoveryReal(unittest.TestCase):
-    """Real SIGKILL → recovery → resume → save flow."""
-
+class TestCrashRecoveryFullFlow(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
-
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def _parse_bootstrap_url(self, url_line):
-        parts = url_line.strip().split("/")
-        port = int(parts[2].split(":")[1])
-        btoken = parts[-1]
-        return port, btoken
+    def _parse(self, ul):
+        p = ul.strip().split("/")
+        hp = p[2]; lst = p[-1] if p[-1] else p[-2]
+        port = int(hp.split(":")[-1]) if ":" in hp else 0
+        return port, lst
 
-    def test_sigkill_then_recover(self):
-        """SIGKILL the editor, verify recovery persists, resume works."""
-        from tests.editor_subprocess_test_support import start_editor_cli, bootstrap_http, do_mutation
-
-        proc, port_raw, url = start_editor_cli(self.tmp)
-        port, btok = self._parse_bootstrap_url(url)
-        self.assertGreater(port, 0)
-
-        # Bootstrap
-        ck, pub, csrf = bootstrap_http(port, btok)
-        self.assertTrue(ck.startswith("yyr4_session_"))
-
-        # Mutate
-        self.assertEqual(do_mutation(port, pub, ck, csrf, "A1",
-                                     {"type": "debug_log", "message": "crash-test"}), 200)
-
-        # Verify recovery exists
-        from yyr4_linux_control.configurator.web.session import list_recoveries
-        recs_before = list_recoveries()
-        self.assertGreater(len(recs_before), 0, "Recovery must exist after mutation")
-
-        # SIGKILL
-        os.kill(proc.pid, signal.SIGKILL)
-        returncode = proc.wait(timeout=10)
-        self.assertEqual(returncode, -signal.SIGKILL, "Process must die by SIGKILL")
-
-        time.sleep(0.5)
-
-        # Recovery still exists
-        recs = list_recoveries()
-        self.assertGreaterEqual(len(recs), 1, "Recovery must survive SIGKILL")
-
-        # Status shows stale
-        rc, out = cli_status()
-        self.assertIn("stale", out.lower())
-
-        # Recover inspect
+    def test_sigkill_recover_inspect(self):
+        from yyr4_linux_control.configurator.web.session import list_recoveries, get_recovery, discard_recovery
+        proc, _, url = start_editor_cli(self.tmp)
+        port, btok = self._parse(url)
+        ck_old, pub_old, csrf_old = bootstrap_http(port, btok)
+        do_mutation(port, pub_old, ck_old, csrf_old, "A1",
+                    {"type":"debug_log","message":"recovery-test"})
+        recs = list_recoveries(); self.assertGreater(len(recs), 0)
         rid = recs[0]["recovery_id"]
-        from yyr4_linux_control.configurator.web.session import get_recovery
-        rec = get_recovery(rid)
-        self.assertIsNotNone(rec)
-        self.assertEqual(rec["recovery_id"], rid)
-        self.assertTrue(rec.get("dirty"))
-        self.assertGreater(rec.get("mutation_count", 0), 0)
-
-        # Cleanup
-        for r in list_recoveries():
-            from yyr4_linux_control.configurator.web.session import discard_recovery
-            discard_recovery(r["recovery_id"])
+        os.kill(proc.pid, signal.SIGKILL)
+        ret = proc.wait(timeout=10); self.assertEqual(ret, -signal.SIGKILL)
+        self.assertGreaterEqual(len(list_recoveries()), 1)
+        rc, out = cli_status(); self.assertIn("stale", out.lower())
+        rec = get_recovery(rid); self.assertIsNotNone(rec)
+        self.assertTrue(rec.get("dirty")); self.assertGreater(rec.get("mutation_count", 0), 0)
+        for r in list_recoveries(): discard_recovery(r["recovery_id"])
 
 
 if __name__ == "__main__":

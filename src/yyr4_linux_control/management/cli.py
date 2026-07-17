@@ -655,9 +655,9 @@ def cmd_editor_start(args):
 
     try:
         print("Press Ctrl+C to stop the editor.")
-        while True:
+        while not server._exit_event.is_set():
             import time
-            time.sleep(1)
+            time.sleep(0.5)
     except KeyboardInterrupt:
         print("\nShutting down editor...")
         server.stop()
@@ -754,8 +754,8 @@ def cmd_editor_recover_resume(args):
         sys.exit(EXIT_CONFIG)
     try:
         print("Press Ctrl+C to stop the editor.")
-        while True:
-            import time; time.sleep(1)
+        while not server._exit_event.is_set():
+            import time; time.sleep(0.5)
     except KeyboardInterrupt:
         print("\nShutting down editor...")
         server.stop()
