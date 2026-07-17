@@ -629,7 +629,7 @@ def cmd_editor_start(args):
     """Start the interactive local graphical configuration editor."""
     from yyr4_linux_control.configurator.web.server import EditorServer
 
-    target = args.target if args.target else args.config
+    target = args.target if getattr(args, "target", None) else getattr(args, "config", None)
     try:
         server = EditorServer(
             source_path=args.config,
@@ -738,7 +738,7 @@ def cmd_editor_recover_resume(args):
     """Resume editing from a recovery."""
     from yyr4_linux_control.configurator.web.session import resume_session
     from yyr4_linux_control.configurator.web.server import EditorServer
-    target = args.target if args.target else args.config
+    target = args.target if getattr(args, "target", None) else getattr(args, "config", None)
     try:
         session = resume_session(args.recovery_id, target, None)
         server = EditorServer(
