@@ -513,6 +513,7 @@ class EditorServer:
             self._source_path, self._target_path, self._backup_dir,
         )
         self._session = session
+        session._shutdown_callback = self._handle_control_stop
         session.create_control_socket()
 
         self._httpd = _EditorServer(self.listen_host, self._port, self._idle_timeout)
@@ -577,6 +578,14 @@ class EditorServer:
                              stderr=subprocess.DEVNULL)
         except Exception:
             pass
+
+    def _handle_control_stop(self, policy: str) -> None:
+        import threading as _thr
+        _thr.Thread(target=self._control_shutdown, args=(policy,), daemon=True).start()
+
+    def _control_shutdown(self, policy: str) -> None:
+        self._session.shutdown(policy=policy)
+        self._shutdown()
 
     def stop(self):
         if self._httpd:

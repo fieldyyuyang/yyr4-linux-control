@@ -101,14 +101,24 @@ class EditorSession:
         return os.path.join(control_dir, f"{self.session_id}.sock")
 
     def create_control_socket(self) -> None:
-        """Create AF_UNIX control socket for status/stop commands."""
-        import socket
+        """Create AF_UNIX control socket with lstat safety and TOCTOU protection."""
+        import socket, stat
         path = self.control_socket_path
         d = os.path.dirname(path)
         os.makedirs(d, exist_ok=True)
         os.chmod(d, 0o700)
+        dst = os.lstat(d)
+        if stat.S_ISLNK(dst.st_mode):
+            raise OSError(f"Control dir is symlink: {d}")
         if os.path.exists(path):
-            # Stale socket — remove and verify it was ours
+            st = os.lstat(path)
+            if stat.S_ISLNK(st.st_mode):
+                raise OSError(f"Control socket path is symlink: {path}")
+            if not stat.S_ISSOCK(st.st_mode):
+                raise OSError(f"Control socket path is not a socket: {path}")
+            if st.st_uid != os.getuid():
+                raise OSError(f"Control socket not owned by current user: {path}")
+            alive = False
             try:
                 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                 s.settimeout(1)
@@ -116,18 +126,21 @@ class EditorSession:
                 s.sendall(json.dumps({"operation":"ping"}).encode() + b"\n")
                 data = s.recv(1024)
                 s.close()
-                # If we get a response, socket is alive — someone else's
-                if b"pong" in data:
-                    raise OSError(f"Control socket {path} already in use (alive)")
-            except (ConnectionRefusedError, FileNotFoundError, OSError, json.JSONDecodeError):
+                if b'pong' in data:
+                    alive = True
+            except (ConnectionRefusedError, TimeoutError, OSError):
                 pass
+            if alive:
+                raise OSError(f"Control socket already alive: {path}")
+            st2 = os.lstat(path)
+            if st2.st_ino != st.st_ino or st2.st_uid != os.getuid():
+                raise OSError(f"Control socket changed under inspection: {path}")
             os.unlink(path)
         self._control_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self._control_sock.bind(path)
         self._control_sock.listen(1)
         os.chmod(path, 0o600)
         self.control_socket_path_var = path
-        # Start control listener thread
         threading.Thread(target=self._control_loop, daemon=True).start()
 
     def _control_loop(self) -> None:
@@ -143,31 +156,47 @@ class EditorSession:
             except Exception:
                 break
 
-    def _handle_control(self, conn) -> None:
-        """Process a single control socket request."""
+    def _check_peer_uid(self, conn) -> bool:
         try:
+            import struct
+            SOL_SOCKET = 1; SO_PEERCRED = 17
+            creds = conn.getsockopt(SOL_SOCKET, SO_PEERCRED, struct.calcsize("iII"))
+            _, uid, _ = struct.unpack("iII", creds)
+            return uid == os.getuid()
+        except Exception:
+            return False
+
+    def _proc_start_time(self) -> str:
+        try: return Path(f"/proc/{os.getpid()}/stat").read_text().split()[21]
+        except Exception: return ""
+
+    def _handle_control(self, conn) -> None:
+        try:
+            if not self._check_peer_uid(conn):
+                conn.close(); return
             data = conn.recv(4096).decode().strip()
-            if not data:
-                conn.close()
-                return
+            if not data or len(data) > 4096:
+                conn.close(); return
             req = json.loads(data)
             op = req.get("operation", "")
-            resp = {"protocol_version": 1, "session_id": self.session_id}
+            resp = {"protocol_version": 1, "session_id": self.session_id,
+                     "pid": os.getpid(), "process_start_time": self._proc_start_time()}
             if op == "ping":
                 resp["status"] = "pong"
             elif op == "status":
-                resp["status"] = "ok"
-                resp["dirty"] = self.dirty
-                resp["mutation_count"] = self.mutation_count
-                resp["running"] = True
+                resp["status"] = "ok"; resp["dirty"] = self.dirty
+                resp["mutation_count"] = self.mutation_count; resp["running"] = True
             elif op == "stop":
                 policy = req.get("dirty_policy", "keep_recovery")
-                resp["status"] = "ok"
-                resp["action"] = "stopping"
-                conn.sendall((json.dumps(resp) + "\n").encode())
-                conn.close()
-                self.shutdown(policy=policy)
-                return
+                if policy not in ("keep_recovery", "discard", "cancel"):
+                    resp = {"status":"error","code":"invalid_policy"}
+                else:
+                    resp["status"] = "ok"; resp["action"] = "stopping"
+                    conn.sendall((json.dumps(resp) + "\n").encode())
+                    conn.close()
+                    if hasattr(self, '_shutdown_callback') and self._shutdown_callback:
+                        self._shutdown_callback(policy)
+                    return
             else:
                 resp = {"status": "error", "code": "unknown_operation"}
             conn.sendall((json.dumps(resp) + "\n").encode())
@@ -175,10 +204,8 @@ class EditorSession:
         except Exception:
             pass
         finally:
-            try:
-                conn.close()
-            except Exception:
-                pass
+            try: conn.close()
+            except Exception: pass
 
     def cleanup_control_socket(self) -> None:
         """Remove control socket."""
