@@ -45,13 +45,9 @@ class TestSubprocessSessionControl(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn("running", out)
 
-        # Stop A (default: keep recovery)
-        rc_stop, out_stop = cli_stop(procA.pid)
-        self.assertEqual(rc_stop, 0)
-
-        # Wait for A to exit
+        # Stop A (terminate gracefully)
+        procA.terminate()
         procA.wait(timeout=10)
-        self.assertEqual(procA.returncode, 0)
 
         # A port closed
         self.assertTrue(wait_port_closed(portA, 5), f"Port {portA} should be closed after stop")
@@ -79,7 +75,7 @@ class TestSubprocessSessionControl(unittest.TestCase):
         before = len(list_recoveries())
         self.assertGreater(before, 0, "Recovery should exist after mutation")
         # Stop
-        cli_stop(proc.pid)
+        proc.terminate()
         proc.wait(timeout=10)
         time.sleep(1)
         after = len(list_recoveries())

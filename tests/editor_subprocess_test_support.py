@@ -93,7 +93,7 @@ def cli_stop(session_id, discard=False):
     env = os.environ.copy()
     env["PYTHONPATH"] = os.path.join(os.path.dirname(__file__), "..", "src")
     args = ["python3", "-m", "yyr4_linux_control.management.cli", "editor", "stop",
-            "--session-id", session_id]
+            "--session-id", str(session_id)]
     if discard:
         args.append("--discard-draft")
     r = subprocess.run(args, capture_output=True, text=True, env=env, timeout=15)
