@@ -931,7 +931,7 @@ def main():
     p_editor.add_argument("--port", type=int, default=0)
     p_editor.add_argument("--idle-timeout", type=int, default=1800)
     p_editor.add_argument("--open-browser", action="store_true")
-    edit_subs = p_editor.add_subparsers(dest="editor_command")
+    edit_subs = p_editor.add_subparsers(dest="editor_command", required=False)
     e_start = edit_subs.add_parser("start")
     e_start.add_argument("--config", required=True)
     e_start.add_argument("--target", type=str, default=None)
@@ -983,3 +983,7 @@ def main():
 
     elif args.command == "editor":
         cmd_editor_dispatch(args)
+
+
+if __name__ == "__main__":
+    main()

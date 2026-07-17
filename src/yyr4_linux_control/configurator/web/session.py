@@ -158,10 +158,11 @@ class EditorSession:
 
     def _check_peer_uid(self, conn) -> bool:
         try:
-            import struct
-            SOL_SOCKET = 1; SO_PEERCRED = 17
-            creds = conn.getsockopt(SOL_SOCKET, SO_PEERCRED, struct.calcsize("iII"))
-            _, uid, _ = struct.unpack("iII", creds)
+            import struct, socket as _sock
+            if not hasattr(_sock, 'SO_PEERCRED'):
+                return False  # unsupported platform
+            creds = conn.getsockopt(_sock.SOL_SOCKET, _sock.SO_PEERCRED, struct.calcsize("3i"))
+            _, uid, _ = struct.unpack("3i", creds)
             return uid == os.getuid()
         except Exception:
             return False
