@@ -115,3 +115,32 @@ def get_session_id_for_pid(pid):
         if ses.get("pid") == pid:
             return ses.get("session_id", "")
     return ""
+
+def cli_recover_resume(recovery_id, port=0):
+    """Run yyr4ctl editor recover resume. Returns (proc, returncode, stdout_url)."""
+    import subprocess, os
+    env = os.environ.copy()
+    pp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src")
+    env["PYTHONPATH"] = pp + os.pathsep + env.get("PYTHONPATH", "")
+    args = ["python3", "-m", "yyr4_linux_control.management.cli", "editor", "recover", "resume",
+            "--recovery-id", recovery_id, "--port", str(port), "--idle-timeout", "300"]
+    proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            env=env, text=True, bufsize=1)
+    url_line = proc.stdout.readline().strip()
+    parts = url_line.split("/")
+    last = parts[-1] if parts[-1] else parts[-2]
+    hp = parts[2] if len(parts) > 2 else "0:0"
+    port = int(hp.split(":")[-1]) if ":" in hp else 0
+    import time; time.sleep(0.3)
+    return proc, port, last, url_line
+
+def cli_recover_inspect(recovery_id):
+    """Run yyr4ctl editor recover inspect. Returns (returncode, output)."""
+    import subprocess, os
+    env = os.environ.copy()
+    pp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src")
+    env["PYTHONPATH"] = pp + os.pathsep + env.get("PYTHONPATH", "")
+    r = subprocess.run(["python3", "-m", "yyr4_linux_control.management.cli", "editor", "recover", "inspect",
+                        "--recovery-id", recovery_id],
+                       capture_output=True, text=True, env=env, timeout=10)
+    return r.returncode, r.stdout + r.stderr
