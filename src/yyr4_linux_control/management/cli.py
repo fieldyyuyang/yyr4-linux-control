@@ -666,42 +666,47 @@ def cmd_editor_start(args):
 
 def cmd_editor_status(args):
     """List running editor sessions for current user."""
-    from yyr4_linux_control.configurator.web.session import RECOVERY_BASE_DIR
-    from pathlib import Path
-    recs = []
-    base = Path(RECOVERY_BASE_DIR)
-    if base.is_dir():
-        import json
-        for entry in sorted(base.iterdir()):
-            mf = entry / "manifest.json"
-            if mf.is_file():
-                try: recs.append(json.loads(mf.read_text()))
-                except: pass
-    print(f"Active recoveries: {len(recs)}")
-    for r in recs:
-        print(f"  {r.get('recovery_id','?')[:12]}  dirty={r.get('dirty')}  "
-              f"mutations={r.get('mutation_count',0)}  "
-              f"source={r.get('source','?')}")
+    from yyr4_linux_control.configurator.web.session import list_sessions
+    sessions = list_sessions()
+    if not sessions:
+        print("No active editor sessions.")
+    for ses in sessions:
+        state = "stale" if ses.get('stale') else "running"
+        print(f"  {ses.get('session_id','?')[:12]}  pid={ses.get('pid')}  port={ses.get('port')}  {state}  dirty={ses.get('dirty')}  mutations={ses.get('mutation_count',0)}")
     sys.exit(EXIT_SUCCESS)
 
 
 def cmd_editor_stop(args):
     """Stop a running editor session by session ID."""
     sid = args.session_id
-    from yyr4_linux_control.configurator.web.session import list_recoveries, discard_recovery
-    recs = list_recoveries()
-    found = [r for r in recs if r.get('recovery_id','').startswith(sid)]
+    from yyr4_linux_control.configurator.web.session import list_sessions, _is_stale
+    import socket, json
+    sessions = list_sessions()
+    found = [s for s in sessions if s.get('session_id','').startswith(sid) or s.get('public_session_id','').startswith(sid)]
     if not found:
         eprint(f"No session found matching: {sid}")
         sys.exit(EXIT_CONFIG)
-    for r in found:
-        discard = getattr(args, 'discard_draft', False)
-        rid = r['recovery_id']
-        if discard or not r.get('dirty'):
-            discard_recovery(rid)
-            print(f"Session {rid[:12]} stopped (draft discarded)")
-        else:
-            print(f"Session {rid[:12]} recovery preserved (dirty=True)")
+    for ses in found:
+        if ses.get('stale'):
+            print(f"Session {ses['session_id'][:12]} is stale — skipping")
+            continue
+        cs_path = ses.get('control_socket')
+        if not cs_path or not os.path.exists(cs_path):
+            eprint(f"Control socket not available for {ses['session_id'][:12]}")
+            continue
+        policy = "discard" if getattr(args, 'discard_draft', False) else "keep_recovery"
+        try:
+            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            s.settimeout(3)
+            s.connect(cs_path)
+            cmd = json.dumps({"operation":"stop","dirty_policy":policy}).encode() + b"\n"
+            s.sendall(cmd)
+            data = s.recv(1024)
+            resp = json.loads(data)
+            s.close()
+            print(f"Session {ses['session_id'][:12]} stopped — {resp.get('status','?')}")
+        except Exception as e:
+            eprint(f"Failed to stop {ses['session_id'][:12]}: {e}")
     sys.exit(EXIT_SUCCESS)
 
 

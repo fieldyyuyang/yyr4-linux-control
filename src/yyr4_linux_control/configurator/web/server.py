@@ -513,6 +513,7 @@ class EditorServer:
             self._source_path, self._target_path, self._backup_dir,
         )
         self._session = session
+        session.create_control_socket()
 
         self._httpd = _EditorServer(self.listen_host, self._port, self._idle_timeout)
         self._httpd.add_session(session)

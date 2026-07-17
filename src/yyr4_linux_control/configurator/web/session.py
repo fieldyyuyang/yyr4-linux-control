@@ -93,6 +93,104 @@ class EditorSession:
     def is_expired(self, idle_timeout: float) -> bool:
         return (time.time() - self.last_activity) > idle_timeout
 
+    @property
+    def control_socket_path(self) -> str:
+        control_dir = os.path.join(
+            os.environ.get("XDG_RUNTIME_DIR", tempfile.gettempdir()),
+            "yyr4", "editor", "control")
+        return os.path.join(control_dir, f"{self.session_id}.sock")
+
+    def create_control_socket(self) -> None:
+        """Create AF_UNIX control socket for status/stop commands."""
+        import socket
+        path = self.control_socket_path
+        d = os.path.dirname(path)
+        os.makedirs(d, exist_ok=True)
+        os.chmod(d, 0o700)
+        if os.path.exists(path):
+            # Stale socket — remove and verify it was ours
+            try:
+                s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                s.settimeout(1)
+                s.connect(path)
+                s.sendall(json.dumps({"operation":"ping"}).encode() + b"\n")
+                data = s.recv(1024)
+                s.close()
+                # If we get a response, socket is alive — someone else's
+                if b"pong" in data:
+                    raise OSError(f"Control socket {path} already in use (alive)")
+            except (ConnectionRefusedError, FileNotFoundError, OSError, json.JSONDecodeError):
+                pass
+            os.unlink(path)
+        self._control_sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self._control_sock.bind(path)
+        self._control_sock.listen(1)
+        os.chmod(path, 0o600)
+        self.control_socket_path_var = path
+        # Start control listener thread
+        threading.Thread(target=self._control_loop, daemon=True).start()
+
+    def _control_loop(self) -> None:
+        """Accept and handle control socket connections."""
+        import socket as sock_mod
+        while not self._shutdown:
+            try:
+                self._control_sock.settimeout(1.0)
+                conn, _ = self._control_sock.accept()
+                self._handle_control(conn)
+            except sock_mod.timeout:
+                continue
+            except Exception:
+                break
+
+    def _handle_control(self, conn) -> None:
+        """Process a single control socket request."""
+        try:
+            data = conn.recv(4096).decode().strip()
+            if not data:
+                conn.close()
+                return
+            req = json.loads(data)
+            op = req.get("operation", "")
+            resp = {"protocol_version": 1, "session_id": self.session_id}
+            if op == "ping":
+                resp["status"] = "pong"
+            elif op == "status":
+                resp["status"] = "ok"
+                resp["dirty"] = self.dirty
+                resp["mutation_count"] = self.mutation_count
+                resp["running"] = True
+            elif op == "stop":
+                policy = req.get("dirty_policy", "keep_recovery")
+                resp["status"] = "ok"
+                resp["action"] = "stopping"
+                conn.sendall((json.dumps(resp) + "\n").encode())
+                conn.close()
+                self.shutdown(policy=policy)
+                return
+            else:
+                resp = {"status": "error", "code": "unknown_operation"}
+            conn.sendall((json.dumps(resp) + "\n").encode())
+            conn.close()
+        except Exception:
+            pass
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    def cleanup_control_socket(self) -> None:
+        """Remove control socket."""
+        try:
+            if hasattr(self, '_control_sock'):
+                self._control_sock.close()
+            p = self.control_socket_path
+            if os.path.exists(p):
+                os.unlink(p)
+        except Exception:
+            pass
+
     def write_registry(self) -> None:
         d = Path(_SESSIONS_DIR)
         d.mkdir(parents=True, exist_ok=True)
@@ -172,6 +270,7 @@ class EditorSession:
             self.write_recovery()
         elif policy == "discard":
             self.discard_recovery()
+        self.cleanup_control_socket()
         self._remove_registry()
         try: shutil.rmtree(self.session_dir, ignore_errors=True)
         except OSError: pass
