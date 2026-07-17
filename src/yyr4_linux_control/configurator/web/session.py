@@ -97,9 +97,20 @@ class EditorSession:
         d = Path(_SESSIONS_DIR)
         d.mkdir(parents=True, exist_ok=True)
         os.chmod(str(d), 0o700)
+        # Get process start time from /proc
+        pst = ""
+        try:
+            pst = Path(f"/proc/{self.pid}/stat").read_text().split()[21]
+        except Exception:
+            pass
         r = {
             "registry_version": 1, "session_id": self.session_id,
-            "pid": self.pid, "port": self.port,
+            "public_session_id": self.public_session_id,
+            "pid": self.pid, "uid": os.getuid(),
+            "process_start_time": pst,
+            "process_identity": f"yyr4-editor-{self.session_id[:8]}",
+            "port": self.port,
+            "control_socket": getattr(self, 'control_socket_path', None),
             "source": os.path.basename(self.source_path),
             "target": os.path.basename(self.target_path),
             "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(self.created_at)),
@@ -280,10 +291,22 @@ def _is_stale(r: dict) -> bool:
     if pid == 0: return True
     try:
         os.kill(pid, 0)
-        proc_uid = os.stat(f"/proc/{pid}").st_uid
-        return proc_uid != os.getuid()
     except OSError:
         return True
+    try:
+        proc_uid = os.stat(f"/proc/{pid}").st_uid
+        if proc_uid != r.get("uid", os.getuid()):
+            return True
+    except Exception:
+        return True
+    # Verify process start time (PID reuse protection)
+    try:
+        current_pst = Path(f"/proc/{pid}/stat").read_text().split()[21]
+        if r.get("process_start_time") and current_pst != r["process_start_time"]:
+            return True
+    except Exception:
+        return True
+    return False
 
 def resume_session(rid: str, target_path: str,
                    backup_dir: Optional[str] = None) -> EditorSession:
