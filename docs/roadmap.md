@@ -218,6 +218,37 @@ NEXT: M5.3 — Interactive Local Graphical Editor and Draft Review Workflow
 
 NEXT: M5.4 — Graphical Editor Hardening, Accessibility, Session Recovery, and Distribution
 
+### M5.4-A2 — Active Session Control and Crash-Safe Recovery ✅ COMPLETE
+
+**Actual scope delivered** (verified against branch `36102dc` + uncommitted WIP):
+
+- Secure Bootstrap URL, Session Cookie, and CSRF with multi-session isolation
+- Active Session Registry with AF_UNIX control socket
+- `editor status` and `editor stop` (with `--discard-draft`)
+- Dirty Draft retention and discard
+- SIGKILL Crash Recovery with Manifest-bound Source, Target, Draft SHA, and Sidecar SHA
+- Recovery integrity verification: `recover list`, `inspect`, `resume`, `discard`
+- Resume produces fresh authentication (new Bootstrap URL, Cookie, CSRF, Session ID)
+- Restored `dirty`, `reviewed`, and `mutation_count` after resume
+- Review API (`POST /api/v1/review`) with CSRF protection
+- Save to original Manifest Target
+- Post-Save: Recovery deleted, Registry `recovery_id` cleared to `null`
+- New Mutation on saved session creates new Recovery ID and rebinds Registry
+- Wheel build (`pip wheel --no-deps --no-index --no-build-isolation`), genuine venv install, yyr4ctl console script
+- Installed Recovery end-to-end: SIGKILL → resume → Review → Save → rebind
+
+**Test evidence** (46 tests total):
+- Installed Recovery: 4/4 OK
+- Installed Smoke: OK
+- Source-tree Recovery regression: 41/41 OK
+- Failures/Errors/Skipped: 0/0/0
+
+Non-blocking test debt: some legacy Popen stdout/stderr pipes produce
+ResourceWarning under strict mode; no runtime impact; deferred to test-infra maintenance.
+
+NEXT: M5.4-A3 — Enforced Resource Limits
+
+
 GUI不直接访问设备，应调用daemon/API。
 
 ## Milestone 6 — Final hardware and product acceptance

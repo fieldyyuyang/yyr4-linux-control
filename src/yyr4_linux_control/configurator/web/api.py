@@ -305,6 +305,11 @@ def handle_unified_diff(session: EditorSession, _query: dict = None) -> dict:
 
 # ── Save ───────────────────────────────────────────────────────────
 
+def handle_review(session: EditorSession, _body: dict = None) -> dict:
+    session.mark_reviewed()
+    return {"status": "ok", "reviewed": True}
+
+
 def handle_save(session: EditorSession, _body: dict = None) -> dict:
     session.touch()
 

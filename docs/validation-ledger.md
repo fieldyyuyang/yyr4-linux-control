@@ -88,3 +88,59 @@ Even if triggered, only the minimal missing scope should be tested, not a full 2
 - M2.1不依赖任何新硬件测试；
 - 下一次真实硬件测试预计在真正需要事件端到端验收的里程碑边界触发；
 - 用户操作必须使用官方名称。
+
+## M5.4-A2 — Active Session Control and Crash-Safe Recovery
+
+### 验证基线
+- 基线HEAD: `36102dc7d5bd198a69728753dff873cdde2a6016`
+- 验证对象: 该HEAD之上的未提交M5.4-A2工作树
+- 最终Commit SHA: Milestone delivery commit; resolve with `git rev-parse HEAD` after checkout
+
+### 安装包验证
+- `pip wheel --no-deps --no-index --no-build-isolation` 成功
+- 真实Python venv安装，非editable，非`--target`
+- 使用venv生成的`yyr4ctl` console script
+- 模块从venv site-packages导入，非仓库src
+
+### 最终测试矩阵
+- Installed Recovery: 4/4 OK
+- Installed Smoke: 1/1 OK
+- Source-tree Recovery regression: 41/41 OK
+- Total: 46 tests
+- Failures: 0
+- Errors: 0
+- Skipped: 0
+
+### 已验证生命周期
+- Bootstrap、Cookie与CSRF
+- 多Session隔离
+- Registry与AF_UNIX控制Socket
+- SIGKILL后Recovery保留
+- Manifest绑定Source和Target
+- Draft SHA与Sidecar SHA完整性
+- `recover list`, `inspect`, `resume`, `discard`
+- Resume后全新认证（新Bootstrap、Cookie、CSRF、Session ID）
+- Draft状态恢复（dirty、reviewed、mutation_count）
+- Review
+- Save到原始Manifest Target
+- Save后Recovery删除和Registry `recovery_id` 解绑为null
+- 后续Mutation创建全新Recovery ID
+- Registry重新绑定新Recovery
+- 普通Stop后保留dirty Recovery
+- 正式Discard完成清理
+
+### 资源结果
+- 最终验证轮次没有产生遗留Editor、Registry、AF_UNIX Socket或Recovery
+- Closeout阶段清理了35个已明确证明属于旧/tmp测试目录的陈旧测试进程
+- 0个无法证明归属的用户进程
+
+### 非阻塞技术债
+- 部分旧Editor测试的Popen stdout/stderr管道在严格ResourceWarning模式下可能产生警告
+- 属于测试基础设施债务，非产品运行时缺陷
+- 不影响当前46项功能测试结果
+- 不阻塞M5.4-A2关闭
+- 后续作为独立维护任务处理
+
+### 快照
+- 当前关闭快照: `/home/fieldy/.local/state/yyr4-linux-control/wip/m54a2-final-delivery.patch`
+- SHA256: `2df655c37f2b40078fc25b5d24be191f7f1b33b6f51d9bab6428a90c02ab1d03` (Closeout-2 snapshot; will be superseded by Closeout-2A)

@@ -16,6 +16,8 @@ def start_editor_cli(tmp=None, port=0):
     if tmp is None:
         tmp = tempfile.mkdtemp()
     src, target = _copy_example(tmp)
+    src = os.path.abspath(src)
+    target = os.path.abspath(target)
     env = os.environ.copy()
     env["PYTHONPATH"] = os.path.join(os.path.dirname(__file__), "..", "src")
     cmd = ["python3", "-m", "yyr4_linux_control.management.cli", "editor",

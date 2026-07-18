@@ -77,6 +77,10 @@ class EditorSession:
     def mark_reviewed(self) -> None:
         self._reviewed_mutation = self.mutation_count
 
+    def restore_review_state(self, draft_mutation_count: int) -> None:
+        """Set reviewed state to indicate unreviewed (dirty) recovery."""
+        self._reviewed_mutation = draft_mutation_count - 1
+
     def consume_bootstrap_token(self, candidate: str) -> bool:
         """Atomically validate and consume bootstrap token."""
         with self._bootstrap_lock:
@@ -237,8 +241,9 @@ class EditorSession:
             "process_identity": f"yyr4-editor-{self.session_id[:8]}",
             "port": self.port,
             "control_socket": getattr(self, 'control_socket_path', None),
-            "source": os.path.basename(self.source_path),
-            "target": os.path.basename(self.target_path),
+            "source": self.source_path,
+            "target": self.target_path,
+            "recovery_id": self._recovery_id,
             "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(self.created_at)),
             "last_activity": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(self.last_activity)),
             "dirty": self.dirty, "mutation_count": self.mutation_count,
@@ -270,13 +275,21 @@ class EditorSession:
         if sp.is_file():
             shutil.copy2(str(sp), str(rdir / "draft.toml.yyr4-draft.json"))
             os.chmod(str(rdir / "draft.toml.yyr4-draft.json"), 0o600)
+        # Fail closed: sidecar and draft must both exist before manifest
+        dp2 = rdir / "draft.toml"
+        scp = rdir / "draft.toml.yyr4-draft.json"
+        if not dp2.is_file() or not scp.is_file():
+            raise RuntimeError(f"Recovery write failed: draft or sidecar missing in {rdir}")
+        draft_sha = hashlib.sha256(dp2.read_bytes()).hexdigest()
+        sidecar_sha = hashlib.sha256(scp.read_bytes()).hexdigest()
         v = self.draft.validate()
         mf = {
             "recovery_version": 1, "recovery_id": rid,
-            "source": os.path.basename(self.source_path),
-            "target": os.path.basename(self.target_path),
+            "source": self.source_path,
+            "target": self.target_path,
             "base_sha256": self.base_sha256,
             "draft_sha256": self.draft_sha256,
+            "sidecar_sha256": sidecar_sha,
             "mutation_count": self.mutation_count,
             "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(self.created_at)),
             "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(self.last_activity)),
@@ -290,6 +303,7 @@ class EditorSession:
         if self._recovery_id:
             shutil.rmtree(str(Path(RECOVERY_BASE_DIR) / self._recovery_id), ignore_errors=True)
             self._recovery_id = None
+            self.write_registry()
 
     def shutdown(self, policy: str = "keep_recovery") -> None:
         if self._shutdown: return
@@ -444,7 +458,53 @@ def resume_session(rid: str, target_path: str,
     manifest = json.loads(mf.read_text())
     if manifest.get("recovery_version") != 1:
         raise ValueError(f"Unknown recovery version: {manifest.get('recovery_version')}")
-    s = create_session(
-        manifest.get("source", ""), target_path or manifest.get("target", ""), backup_dir,
-    )
+    source = manifest.get("source", "")
+    target = target_path or manifest.get("target", "")
+    if not source or not target:
+        raise FileNotFoundError(f"Recovery manifest missing source or target")
+    # Verify source SHA hasn't changed (concurrent modification check)
+    source_path = Path(source)
+    base_sha = manifest.get("base_sha256", "")
+    if base_sha and source_path.exists():
+        from yyr4_linux_control.control.config import load_control_config_from_file
+        from yyr4_linux_control.configurator.serializer import serialize
+        import hashlib
+        config = load_control_config_from_file(source_path)
+        current_sha = hashlib.sha256(serialize(config).encode()).hexdigest()
+        if current_sha != base_sha:
+            raise ValueError("concurrent_modification")
+    s = create_session(source, target, backup_dir)
+    s._recovery_id = rid
+
+    # Restore recovery state via formal ConfigDraft.from_recovery
+    recovery_draft = rdir / "draft.toml"
+    recovery_sidecar = rdir / "draft.toml.yyr4-draft.json"
+    draft_sha = manifest.get("draft_sha256", "")
+    sidecar_sha = manifest.get("sidecar_sha256", None)
+    # Legacy manifests without sidecar_sha256 cannot be resumed
+    if sidecar_sha is None:
+        raise ValueError("Cannot resume legacy recovery: missing sidecar_sha256 in manifest. Use recover discard to remove it.")
+
+    if recovery_draft.is_file() and s.draft:
+        from yyr4_linux_control.configurator.draft import ConfigDraft
+        restored = ConfigDraft.from_recovery(
+            source_path=Path(source),
+            recovery_draft_path=recovery_draft,
+            recovery_sidecar_path=recovery_sidecar,
+            expected_draft_sha256=draft_sha,
+            expected_sidecar_sha256=sidecar_sha,
+        )
+        s.draft = restored
+        # Copy recovery files into session directory
+        import shutil as _sh
+        _sh.copy2(str(recovery_draft), str(Path(s.draft_path)))
+        os.chmod(str(Path(s.draft_path)), 0o600)
+        if recovery_sidecar.is_file():
+            _sh.copy2(str(recovery_sidecar), str(Path(str(s.draft_path) + ".yyr4-draft.json")))
+            os.chmod(str(Path(str(s.draft_path) + ".yyr4-draft.json")), 0o600)
+        # Mark as unreviewed = dirty
+        s.restore_review_state(restored.mutation_count)
+        # Update registry with recovery_id
+        s.write_registry()
+
     return s

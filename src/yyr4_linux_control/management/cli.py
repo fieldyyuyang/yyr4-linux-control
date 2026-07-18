@@ -738,16 +738,18 @@ def cmd_editor_recover_resume(args):
     """Resume editing from a recovery."""
     from yyr4_linux_control.configurator.web.session import resume_session
     from yyr4_linux_control.configurator.web.server import EditorServer
-    target = args.target if getattr(args, "target", None) else getattr(args, "config", None)
+
+    rid = args.recovery_id
     try:
-        session = resume_session(args.recovery_id, target, None)
+        session = resume_session(rid, getattr(args, 'target', None) or '')
         server = EditorServer(
-            source_path=args.config, target_path=target,
-            port=args.port, idle_timeout=args.idle_timeout,
+            source_path=session.source_path,
+            target_path=session.target_path,
+            port=getattr(args, 'port', 0),
+            idle_timeout=getattr(args, 'idle_timeout', 1800),
             open_browser=False,
+            session=session,
         )
-        server._session = session
-        server._port = args.port
         url = server.start()
     except Exception as e:
         eprint(f"Recovery failed: {e}")
@@ -950,7 +952,7 @@ def main():
     ri.add_argument("--recovery-id", required=True)
     rr = rec_subs.add_parser("resume")
     rr.add_argument("--recovery-id", required=True)
-    rr.add_argument("--config", required=True)
+    rr.add_argument("--config", type=str, default=None)
     rr.add_argument("--target", type=str, default=None)
     rr.add_argument("--port", type=int, default=0)
     rr.add_argument("--idle-timeout", type=int, default=1800)

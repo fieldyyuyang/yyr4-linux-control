@@ -70,6 +70,48 @@ class ConfigDraft:
         # Mutation records for intent-preserving diff (rename tracking)
         self._mutation_records: List[dict] = []
 
+    @classmethod
+    def from_recovery(
+        cls, source_path: Path, recovery_draft_path: Path,
+        recovery_sidecar_path: Path, expected_draft_sha256: str = '',
+        expected_sidecar_sha256: str = '',
+    ) -> "ConfigDraft":
+        """Create a ConfigDraft that restores recovery state."""
+        import hashlib
+
+        # Load base from original source
+        draft = cls(source_path)
+
+        # Load working config from recovery draft
+        draft_text = recovery_draft_path.read_text()
+        working = _load_from_string(draft_text)
+        draft.working_config = working
+        draft._dirty = True
+
+        # Validate draft SHA if expected
+        if expected_draft_sha256:
+            actual_draft_sha = hashlib.sha256(draft_text.encode()).hexdigest()
+            if actual_draft_sha != expected_draft_sha256:
+                raise ValueError(
+                    f"Draft SHA mismatch: expected {expected_draft_sha256[:16]}, got {actual_draft_sha[:16]}")
+
+        # Load sidecar
+        from yyr4_linux_control.configurator.sidecar import read_sidecar
+        sc = read_sidecar(recovery_draft_path)
+
+        # Validate sidecar SHA if expected
+        if expected_sidecar_sha256:
+            sidecar_text = recovery_sidecar_path.read_text()
+            actual_sidecar_sha = hashlib.sha256(sidecar_text.encode()).hexdigest()
+            if actual_sidecar_sha != expected_sidecar_sha256:
+                raise ValueError(
+                    f"Sidecar SHA mismatch: expected {expected_sidecar_sha256[:16]}, got {actual_sidecar_sha[:16]}")
+
+        # Restore mutation count
+        draft._mutation_count = sc.get("mutation_count", 0)
+
+        return draft
+
     @property
     def dirty(self) -> bool:
         return self._dirty

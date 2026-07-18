@@ -400,6 +400,8 @@ class _EditorHandler(BaseHTTPRequestHandler):
                 self._send_json(editor_api.handle_set_initial_layer(session, body))
                 session.write_recovery()
                 session.write_registry()
+            elif api_path == "/api/v1/review":
+                self._send_json(editor_api.handle_review(session, {}))
             elif api_path == "/api/v1/save":
                 self._send_json(editor_api.handle_save(session, body))
                 if session.draft and not session.dirty:
@@ -476,6 +478,7 @@ class EditorServer:
         port: int = 0,
         idle_timeout: float = 1800,
         open_browser: bool = False,
+        session: Optional[EditorSession] = None,
     ):
         self._source_path = source_path
         self._target_path = target_path
@@ -484,7 +487,7 @@ class EditorServer:
         self._idle_timeout = idle_timeout
         self._open_browser = open_browser
         self._httpd: Optional[_EditorServer] = None
-        self._session: Optional[EditorSession] = None
+        self._session: Optional[EditorSession] = session
         self._thread: Optional[threading.Thread] = None
 
     @property
@@ -509,10 +512,13 @@ class EditorServer:
         return ""
 
     def start(self) -> str:
-        session = create_session(
-            self._source_path, self._target_path, self._backup_dir,
-        )
-        self._session = session
+        if self._session is None:
+            session = create_session(
+                self._source_path, self._target_path, self._backup_dir,
+            )
+            self._session = session
+        else:
+            session = self._session
         session._shutdown_callback = self._handle_control_stop
         session.create_control_socket()
 
